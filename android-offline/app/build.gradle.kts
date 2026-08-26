@@ -6,18 +6,28 @@ plugins {
 android {
     namespace = "np.com.laxmannepal.texttohandwriting"
     compileSdk = 36
-
     defaultConfig {
         applicationId = "np.com.laxmannepal.texttohandwriting"
         minSdk = 23
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = (System.getenv("ANDROID_VERSION_CODE") ?: "1").toInt()
+        versionName = System.getenv("ANDROID_VERSION_NAME") ?: "1.0.0"
     }
-
+    signingConfigs {
+        create("release") {
+            val p = System.getenv("ANDROID_KEYSTORE_PATH")
+            if (!p.isNullOrBlank()) {
+                storeFile = file(p)
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (!System.getenv("ANDROID_KEYSTORE_PATH").isNullOrBlank()) signingConfig = signingConfigs.getByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
