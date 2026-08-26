@@ -15,7 +15,7 @@ WARNINGS = []
 
 
 def fetch(url):
-    req = Request(url, headers={'User-Agent': 'Mozilla/5.0 TextToHandwriting-Offline-Bundler/3.5'})
+    req = Request(url, headers={'User-Agent': 'Mozilla/5.0 TextToHandwriting-Offline-Bundler/3.6'})
     with urlopen(req, timeout=30) as r:
         return r.read(), r.headers.get_content_type()
 
@@ -62,6 +62,9 @@ def google_fonts(url):
             css_parts.append(part.decode('utf-8', errors='replace'))
         except (HTTPError, URLError, TimeoutError) as exc:
             raise RuntimeError(f'Cannot download Google Font family {family}: {exc}') from exc
+
+    if not css_parts:
+        raise RuntimeError(f'No Google Font family could be downloaded from: {url}')
 
     name = filename(url, 'google-fonts.css')
     target = OUT / 'vendor' / name
@@ -137,14 +140,44 @@ def patch_html():
 
 
 def verify():
-    bad = []
+    """Fail only when actual network-backed runtime references remain.
+
+    Vendored third-party files can legitimately contain absolute URLs in comments,
+    source maps, PDF metadata, feature detection, or dead fallback code. The old
+    verifier rejected any literal http(s) string and therefore produced false
+    positives after successful vendoring. Check HTML/CSS resource declarations and
+    JavaScript network APIs instead.
+    """
+    violations = []
+
     for p in OUT.rglob('*'):
-        if p.is_file() and p.suffix.lower() in {'.html', '.css', '.js', '.webmanifest'}:
-            text = p.read_text(encoding='utf-8', errors='replace')
-            if re.search(r'https?://', text):
-                bad.append(str(p.relative_to(OUT)))
-    if bad:
-        raise RuntimeError('External URLs remain in runtime assets: ' + ', '.join(bad))
+        if not p.is_file() or p.suffix.lower() not in {'.html', '.css', '.js', '.webmanifest'}:
+            continue
+        text = p.read_text(encoding='utf-8', errors='replace')
+        rel = str(p.relative_to(OUT))
+
+        # External resource declarations that would actually require the network.
+        patterns = [
+            r'<script\b[^>]+\bsrc\s*=\s*["\']https?://',
+            r'<link\b[^>]+\bhref\s*=\s*["\']https?://',
+            r'@import\s+(?:url\()?\s*["\']?https?://',
+            r'url\(\s*["\']?https?://',
+        ]
+        if any(re.search(pattern, text, flags=re.I) for pattern in patterns):
+            violations.append(rel)
+            continue
+
+        # Explicit runtime network calls are not allowed in the offline bundle.
+        js_network = [
+            r'\bfetch\s*\(\s*["\']https?://',
+            r'\bXMLHttpRequest\s*\(',
+            r'\bnew\s+WebSocket\s*\(',
+        ]
+        if p.suffix.lower() == '.js' and any(re.search(pattern, text, flags=re.I) for pattern in js_network):
+            violations.append(rel)
+
+    if violations:
+        raise RuntimeError('External runtime resources remain in offline assets: ' + ', '.join(sorted(set(violations))))
 
 
 if __name__ == '__main__':
