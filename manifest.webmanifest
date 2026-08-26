@@ -1,0 +1,27 @@
+{
+  "name": "Text to Handwriting Generator",
+  "short_name": "Handwriting",
+  "description": "Convert typed text into realistic handwriting images and PDFs.",
+  "lang": "en",
+  "dir": "ltr",
+  "start_url": "/Text-To-Handwriting/?source=pwa",
+  "scope": "/Text-To-Handwriting/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "portrait-primary",
+  "theme_color": "#0284c7",
+  "background_color": "#f1f5f9",
+  "categories": ["education", "productivity", "utilities"],
+  "prefer_related_applications": false,
+  "icons": [
+    {"src":"./icons/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ],
+  "shortcuts": [
+    {
+      "name": "Create handwriting",
+      "short_name": "Create",
+      "url": "/Text-To-Handwriting/?action=create",
+      "icons": [{"src":"./icons/icon.svg","sizes":"any","type":"image/svg+xml"}]
+    }
+  ]
+}
