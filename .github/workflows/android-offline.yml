@@ -4,14 +4,17 @@ on:
   workflow_dispatch:
     inputs:
       version_name:
-        description: 'Android version name'
+        description: Android version name
         required: true
         default: '1.0.0'
       version_code:
-        description: 'Android version code'
+        description: Android version code
         required: true
         default: '1'
   push:
+    paths:
+      - 'android-offline/**'
+      - '.github/workflows/android-offline.yml'
     tags:
       - 'offline-v*'
 
@@ -35,15 +38,19 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Stage and vendor offline web assets
         run: python3 android-offline/scripts/package_web.py
 
-      - name: Verify no remote runtime dependencies in bundled HTML
+      - name: Verify offline bundle
+        shell: bash
         run: |
           set -euo pipefail
-          if grep -Eiq '(src|href)[[:space:]]*=[[:space:]]*["'"']https?://' android-offline/app/src/main/assets/www/index.html; then
-            echo 'Remote HTML dependency detected in bundled index.html'
-            grep -Ein '(src|href)[[:space:]]*=[[:space:]]*["'"']https?://' android-offline/app/src/main/assets/www/index.html || true
+          test -s android-offline/app/src/main/assets/www/index.html
+          if grep -RInE 'https?://' android-offline/app/src/main/assets/www --include='*.html' --include='*.css' --include='*.js' --include='*.webmanifest'; then
+            echo 'External runtime URL detected in offline bundle.'
             exit 1
           fi
 
@@ -56,7 +63,7 @@ jobs:
         working-directory: android-offline
         run: gradle wrapper --gradle-version 9.5 --distribution-type bin
 
-      - name: Prepare signing
+      - name: Prepare production signing
         shell: bash
         env:
           KEYSTORE_B64: ${{ secrets.TTH_KEYSTORE_BASE64 }}
@@ -72,16 +79,13 @@ jobs:
             echo "ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
             echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
             echo "ANDROID_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
-            echo 'Stable signing configured.'
+            echo 'Stable production signing enabled.'
           else
-            echo 'No production signing secrets configured. Building unsigned release plus debug APK.'
+            echo 'Production signing secrets are not configured; release artifacts will be unsigned.'
           fi
 
       - name: Build APK and AAB
         working-directory: android-offline
-        env:
-          ANDROID_VERSION_NAME: ${{ env.VERSION_NAME }}
-          ANDROID_VERSION_CODE: ${{ env.VERSION_CODE }}
         run: |
           set -euo pipefail
           ./gradlew clean assembleDebug assembleRelease bundleRelease --no-daemon
@@ -90,18 +94,22 @@ jobs:
           cp app/build/outputs/apk/release/app-release.apk "../dist/Text-To-Handwriting-${VERSION_NAME}-release.apk"
           cp app/build/outputs/bundle/release/app-release.aab "../dist/Text-To-Handwriting-${VERSION_NAME}.aab"
 
-      - name: Verify APK contents
-        working-directory: android-offline
+      - name: Verify APK contains bundled application
         run: |
           set -euo pipefail
-          unzip -l app/build/outputs/apk/release/app-release.apk | grep -q 'assets/www/index.html'
-          unzip -l app/build/outputs/apk/release/app-release.apk | grep -q 'assets/www/'
+          APK=android-offline/app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          unzip -l "$APK" | grep -q 'assets/www/index.html'
+          unzip -l "$APK" | grep -q 'assets/www/studio-v2.js'
+
+      - name: Generate checksums
+        run: sha256sum dist/* > dist/SHA256SUMS.txt
 
       - name: Upload APK and AAB artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: text-to-handwriting-offline-android
-          path: dist/*
+          name: text-to-handwriting-offline-android-${{ env.VERSION_NAME }}
+          path: dist/
           retention-days: 30
 
       - name: Publish GitHub Release
