@@ -22,8 +22,6 @@ env:
   APP_URL: https://apps.laxmannepal.com.np/Text-To-Handwriting/manifest.webmanifest
   APP_START_URL: /Text-To-Handwriting/?source=android
   PACKAGE_ID: np.com.laxmannepal.texttohandwriting
-  APP_NAME: Text to Handwriting
-  SHORT_NAME: Handwriting
 
 jobs:
   build:
@@ -46,7 +44,7 @@ jobs:
       - name: Install Bubblewrap
         run: npm install --global @bubblewrap/cli
 
-      - name: Prepare Android project
+      - name: Prepare signing key
         shell: bash
         env:
           KEYSTORE_B64: ${{ secrets.TTH_KEYSTORE_BASE64 }}
@@ -57,37 +55,39 @@ jobs:
           set -euo pipefail
           rm -rf android
           mkdir -p android
-
           if [ -n "${KEYSTORE_B64:-}" ] && [ -n "${KEYSTORE_PASSWORD:-}" ] && [ -n "${KEY_PASSWORD:-}" ]; then
-            echo "Using repository signing key."
+            echo "Using stable repository signing key."
             printf '%s' "$KEYSTORE_B64" | base64 --decode > android/android-keystore
-            export BUILD_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD"
-            export BUILD_KEY_PASSWORD="$KEY_PASSWORD"
-            export BUILD_KEY_ALIAS="${KEY_ALIAS:-android}"
+            echo "BUILD_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "BUILD_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+            echo "BUILD_KEY_ALIAS=${KEY_ALIAS:-android}" >> "$GITHUB_ENV"
+            echo "STABLE_SIGNING=true" >> "$GITHUB_ENV"
           else
             echo "No stable signing secrets configured; creating a temporary CI signing key."
-            echo "This APK is for testing/sideloading and should not be used for future upgrade releases."
-            export BUILD_KEYSTORE_PASSWORD='temporary-tth-ci-key-2026'
-            export BUILD_KEY_PASSWORD='temporary-tth-ci-key-2026'
-            export BUILD_KEY_ALIAS='android'
-            keytool -genkeypair -v \
-              -keystore android/android-keystore \
-              -alias "$BUILD_KEY_ALIAS" \
-              -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass "$BUILD_KEYSTORE_PASSWORD" \
-              -keypass "$BUILD_KEY_PASSWORD" \
+            echo "This APK is for testing/sideloading only and cannot be used for seamless future updates."
+            PASS='temporary-tth-ci-key-2026'
+            keytool -genkeypair -v -keystore android/android-keystore -alias android \
+              -keyalg RSA -keysize 2048 -validity 10000 -storepass "$PASS" -keypass "$PASS" \
               -dname 'CN=Text to Handwriting, OU=Laxman Nepal, O=Laxman Nepal, C=NP'
+            echo "BUILD_KEYSTORE_PASSWORD=$PASS" >> "$GITHUB_ENV"
+            echo "BUILD_KEY_PASSWORD=$PASS" >> "$GITHUB_ENV"
+            echo "BUILD_KEY_ALIAS=android" >> "$GITHUB_ENV"
+            echo "STABLE_SIGNING=false" >> "$GITHUB_ENV"
           fi
 
-          echo "BUILD_KEYSTORE_PASSWORD=$BUILD_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
-          echo "BUILD_KEY_PASSWORD=$BUILD_KEY_PASSWORD" >> "$GITHUB_ENV"
-          echo "BUILD_KEY_ALIAS=$BUILD_KEY_ALIAS" >> "$GITHUB_ENV"
-
-          # Bubblewrap init is interactive; blank answers accept the manifest defaults.
+      - name: Initialize Bubblewrap project
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Bubblewrap currently has no silent init mode; blank input accepts web-manifest defaults.
           yes '' | head -n 18 | bubblewrap init \
             --manifest="$APP_URL" \
             --directory="android"
 
+      - name: Set Android identity and version
+        shell: bash
+        run: |
+          set -euo pipefail
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -99,9 +99,16 @@ jobs:
           d['startUrl'] = '/Text-To-Handwriting/?source=android'
           d['appVersion'] = '${{ inputs.version_name || github.ref_name }}'.replace('android-v','')
           d['appVersionCode'] = int('${{ inputs.version_code || github.run_number }}')
-          d['signingKey'] = {'path': str(Path.cwd() / 'android/android-keystore'), 'alias': '${{ secrets.TTH_KEY_ALIAS || 'android' }}'}
+          d['signingKey'] = {
+            'path': str(Path.cwd() / 'android/android-keystore'),
+            'alias': '${{ secrets.TTH_KEY_ALIAS || 'android' }}'
+          }
           p.write_text(json.dumps(d, indent=2) + '\n')
           PY
+
+      - name: Regenerate Android project from final manifest
+        run: |
+          bubblewrap update --skipVersionUpgrade --manifest=android/twa-manifest.json
 
       - name: Build signed APK
         env:
@@ -116,8 +123,8 @@ jobs:
       - name: Generate signing fingerprint
         run: |
           keytool -list -v -keystore android/android-keystore \
-            -storepass "$BUILD_KEYSTORE_PASSWORD" \
-            -alias "$BUILD_KEY_ALIAS" | grep -E 'SHA256:' | tee signing-fingerprint.txt
+            -storepass "$BUILD_KEYSTORE_PASSWORD" -alias "$BUILD_KEY_ALIAS" \
+            | grep -E 'SHA256:' | tee signing-fingerprint.txt
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -129,7 +136,7 @@ jobs:
           retention-days: 30
 
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/android-v') && secrets.TTH_KEYSTORE_BASE64 != ''
+        if: startsWith(github.ref, 'refs/tags/android-v') && env.STABLE_SIGNING == 'true'
         uses: softprops/action-gh-release@v2
         with:
           files: Text-To-Handwriting.apk
