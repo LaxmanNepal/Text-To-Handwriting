@@ -20,6 +20,15 @@
     el._timer = setTimeout(() => { el.style.display = 'none'; }, 3200);
   };
 
+  const loadStudio = () => {
+    if (document.querySelector('script[data-studio-v2]')) return;
+    const s = document.createElement('script');
+    s.src = `${APP_SCOPE}studio-v2.js?v=2`;
+    s.async = true;
+    s.dataset.studioV2 = 'true';
+    document.head.appendChild(s);
+  };
+
   const createInstallButton = () => {
     if (document.getElementById('pwa-install-button') || isStandalone()) return;
     const button = document.createElement('button');
@@ -30,9 +39,7 @@
     button.style.cssText = 'position:fixed;right:16px;bottom:18px;z-index:9999;display:flex;align-items:center;gap:8px;padding:12px 16px;border:1px solid rgba(255,255,255,.25);border-radius:16px;background:rgba(2,132,199,.94);color:#fff;font:700 14px system-ui,sans-serif;box-shadow:0 12px 34px rgba(2,132,199,.3);cursor:pointer;backdrop-filter:blur(14px);';
     button.addEventListener('click', async () => {
       if (!deferredPrompt) {
-        if (/iphone|ipad|ipod/i.test(navigator.userAgent)) {
-          toast('On iPhone/iPad: tap Share → Add to Home Screen.');
-        }
+        if (/iphone|ipad|ipod/i.test(navigator.userAgent)) toast('On iPhone/iPad: tap Share → Add to Home Screen.');
         return;
       }
       deferredPrompt.prompt();
@@ -52,22 +59,17 @@
     document.body.appendChild(banner);
     const update = document.getElementById('pwa-update-now');
     update.style.cssText = 'border:0;border-radius:10px;padding:8px 13px;background:#0284c7;color:#fff;font-weight:800;cursor:pointer;';
-    update.onclick = () => {
-      registration.waiting?.postMessage({type:'SKIP_WAITING'});
-      setTimeout(() => window.location.reload(), 250);
-    };
+    update.onclick = () => { registration.waiting?.postMessage({type:'SKIP_WAITING'}); setTimeout(() => window.location.reload(), 250); };
   };
 
   const saveDraft = () => {
-    const editor = document.getElementById('paper-content');
+    const editor = document.querySelector('.paper-content') || document.getElementById('paper-content');
     if (!editor) return;
-    try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({html: editor.innerHTML, savedAt: Date.now()}));
-    } catch (_) {}
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify({html: editor.innerHTML, savedAt: Date.now()})); } catch (_) {}
   };
 
   const restoreDraft = () => {
-    const editor = document.getElementById('paper-content');
+    const editor = document.querySelector('.paper-content') || document.getElementById('paper-content');
     if (!editor) return;
     try {
       const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
@@ -92,30 +94,19 @@
           if (worker.state === 'installed' && navigator.serviceWorker.controller) showUpdateBanner(registration);
         });
       });
-    } catch (error) {
-      console.warn('PWA registration failed:', error);
-    }
+    } catch (error) { console.warn('PWA registration failed:', error); }
   };
 
-  window.addEventListener('beforeinstallprompt', event => {
-    event.preventDefault();
-    deferredPrompt = event;
-    createInstallButton();
-  });
-
-  window.addEventListener('appinstalled', () => {
-    deferredPrompt = null;
-    document.getElementById('pwa-install-button')?.remove();
-    toast('Text to Handwriting is installed.');
-  });
+  window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); deferredPrompt = event; createInstallButton(); });
+  window.addEventListener('appinstalled', () => { deferredPrompt = null; document.getElementById('pwa-install-button')?.remove(); toast('Text to Handwriting is installed.'); });
 
   window.addEventListener('DOMContentLoaded', () => {
     restoreDraft();
-    const editor = document.getElementById('paper-content');
+    const editor = document.querySelector('.paper-content') || document.getElementById('paper-content');
     editor?.addEventListener('input', saveDraft);
     window.addEventListener('beforeunload', saveDraft);
+    loadStudio();
     setTimeout(createInstallButton, 1200);
   });
-
   window.addEventListener('load', register);
 })();
