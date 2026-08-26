@@ -3,6 +3,7 @@ name: Enable PWA
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -31,10 +32,10 @@ jobs:
           additions = [manifest, theme, mobile, apple, icon]
           for tag in additions:
               if tag not in text:
-                  text = text.replace('</head>', f'  {tag}\\n</head>', 1)
+                  text = text.replace('</head>', f'  {tag}\n</head>', 1)
 
           if script not in text:
-              text = text.replace('</body>', f'  {script}\\n</body>', 1)
+              text = text.replace('</body>', f'  {script}\n</body>', 1)
 
           p.write_text(text, encoding='utf-8')
 
