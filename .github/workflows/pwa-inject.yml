@@ -15,7 +15,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Inject PWA metadata and registration
+      - name: Inject PWA metadata, registration and mobile responsive CSS
         shell: python
         run: |
           from pathlib import Path
@@ -27,9 +27,10 @@ jobs:
           mobile = '<meta name="mobile-web-app-capable" content="yes">'
           apple = '<meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="Handwriting">'
           icon = '<link rel="icon" href="./icons/icon.svg" type="image/svg+xml">'
+          responsive = '<link rel="stylesheet" href="./mobile-responsive.css">'
           script = '<script src="./pwa.js" defer></script>'
 
-          additions = [manifest, theme, mobile, apple, icon]
+          additions = [manifest, theme, mobile, apple, icon, responsive]
           for tag in additions:
               if tag not in text:
                   text = text.replace('</head>', f'  {tag}\n</head>', 1)
@@ -39,14 +40,14 @@ jobs:
 
           p.write_text(text, encoding='utf-8')
 
-      - name: Commit injected PWA support
+      - name: Commit injected PWA and responsive support
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
           if git diff --cached --quiet; then
-            echo "PWA support already injected"
+            echo "PWA and responsive support already injected"
           else
-            git commit -m "feat(pwa): enable installable app support [skip ci]"
+            git commit -m "feat(ui): inject mobile responsive support [skip ci]"
             git push
           fi
