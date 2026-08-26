@@ -6,6 +6,7 @@ button, a, select, input, textarea { -webkit-tap-highlight-color: transparent; }
 button, select, input[type="file"], input[type="color"] { min-height: 42px; }
 #paper-wrapper { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
 
+/* Desktop is intentionally untouched. Mobile gets its own paper geometry. */
 @media (max-width: 639px) {
   body { min-width: 0; }
   header { position: sticky; top: 0; }
@@ -22,16 +23,19 @@ button, select, input[type="file"], input[type="color"] { min-height: 42px; }
   #paper-wrapper { width: 100% !important; padding: 7px !important; border-radius: 14px !important; overflow-x: hidden !important; }
   #paper-sheet { width: 100% !important; max-width: 100% !important; min-height: 560px !important; height: auto !important; padding: 12px !important; border-radius: 3px !important; }
 
-  /* Mobile paper starts one ruled line lower. The original paper uses a 40px header space;
-     mobile uses 26px, which pulled the first text row upward. Restore one full 30px row. */
-  #paper-top-space { height: 56px !important; }
+  /* The original top spacer is 40px. Keep it 40px on mobile so the first
+     generated line is not lost. Text begins on that first ruled line. */
+  #paper-top-space { height: 40px !important; }
 
+  /* Text starts to the right of the red margin. The sheet's 12px padding is
+     already part of the coordinate system, so do not compensate twice. */
   #paper-margin-line { left: 40px !important; width: 2px !important; }
-  #paper-left-gap { width: 38px !important; flex: 0 0 38px !important; }
-  #paper-content { margin-left: 0 !important; padding-left: 0 !important; padding-top: 4px !important; }
+  #paper-left-gap { width: 40px !important; flex: 0 0 40px !important; }
+  #paper-content { margin: 0 !important; padding: 0 !important; }
   .paper-content { min-height: 500px !important; width: 100% !important; max-width: 100% !important; font-size: 12pt !important; line-height: 30px !important; overflow-wrap: anywhere !important; word-break: normal !important; }
   .paper-line-row { height: 30px !important; }
   .paper-content img.embedded-diagram { max-width: 100% !important; }
+
   #paper-section .flex.items-center.justify-between.gap-2.flex-wrap { width: 100%; }
   #draw-modal-open-btn, #clear-input-btn { min-height: 40px !important; padding: 8px 10px !important; }
   #char-count, #word-count { font-size: 10px !important; }
@@ -51,10 +55,12 @@ button, select, input[type="file"], input[type="color"] { min-height: 42px; }
   main { padding-left: 7px !important; padding-right: 7px !important; }
   #paper-wrapper { padding: 5px !important; }
   #paper-sheet { padding: 9px !important; min-height: 520px !important; }
-  #paper-top-space { height: 54px !important; }
+
+  /* Keep the first line visible and start text on it. */
+  #paper-top-space { height: 40px !important; }
   #paper-margin-line { left: 34px !important; width: 2px !important; }
-  #paper-left-gap { width: 38px !important; flex-basis: 38px !important; }
-  #paper-content { margin-left: 0 !important; padding-left: 0 !important; }
+  #paper-left-gap { width: 35px !important; flex-basis: 35px !important; }
+  #paper-content { margin: 0 !important; padding: 0 !important; }
   .paper-content { font-size: 11.5pt !important; line-height: 28px !important; }
   .paper-line-row { height: 28px !important; }
   main > .lg\\:hidden span { font-size: 10px !important; }
