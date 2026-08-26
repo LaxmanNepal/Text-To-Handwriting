@@ -1,0 +1,137 @@
+name: Android APK (PWA/TWA)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Android version name'
+        required: true
+        default: '1.0.0'
+      version_code:
+        description: 'Android version code'
+        required: true
+        default: '1'
+  push:
+    tags:
+      - 'android-v*'
+
+permissions:
+  contents: write
+
+env:
+  APP_URL: https://apps.laxmannepal.com.np/Text-To-Handwriting/manifest.webmanifest
+  APP_START_URL: /Text-To-Handwriting/?source=android
+  PACKAGE_ID: np.com.laxmannepal.texttohandwriting
+  APP_NAME: Text to Handwriting
+  SHORT_NAME: Handwriting
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Bubblewrap
+        run: npm install --global @bubblewrap/cli
+
+      - name: Prepare Android project
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.TTH_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.TTH_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.TTH_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.TTH_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          rm -rf android
+          mkdir -p android
+
+          if [ -n "${KEYSTORE_B64:-}" ] && [ -n "${KEYSTORE_PASSWORD:-}" ] && [ -n "${KEY_PASSWORD:-}" ]; then
+            echo "Using repository signing key."
+            printf '%s' "$KEYSTORE_B64" | base64 --decode > android/android-keystore
+            export BUILD_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD"
+            export BUILD_KEY_PASSWORD="$KEY_PASSWORD"
+            export BUILD_KEY_ALIAS="${KEY_ALIAS:-android}"
+          else
+            echo "No stable signing secrets configured; creating a temporary CI signing key."
+            echo "This APK is for testing/sideloading and should not be used for future upgrade releases."
+            export BUILD_KEYSTORE_PASSWORD='temporary-tth-ci-key-2026'
+            export BUILD_KEY_PASSWORD='temporary-tth-ci-key-2026'
+            export BUILD_KEY_ALIAS='android'
+            keytool -genkeypair -v \
+              -keystore android/android-keystore \
+              -alias "$BUILD_KEY_ALIAS" \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$BUILD_KEYSTORE_PASSWORD" \
+              -keypass "$BUILD_KEY_PASSWORD" \
+              -dname 'CN=Text to Handwriting, OU=Laxman Nepal, O=Laxman Nepal, C=NP'
+          fi
+
+          echo "BUILD_KEYSTORE_PASSWORD=$BUILD_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "BUILD_KEY_PASSWORD=$BUILD_KEY_PASSWORD" >> "$GITHUB_ENV"
+          echo "BUILD_KEY_ALIAS=$BUILD_KEY_ALIAS" >> "$GITHUB_ENV"
+
+          # Bubblewrap init is interactive; blank answers accept the manifest defaults.
+          yes '' | head -n 18 | bubblewrap init \
+            --manifest="$APP_URL" \
+            --directory="android"
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('android/twa-manifest.json')
+          d = json.loads(p.read_text())
+          d['name'] = 'Text to Handwriting'
+          d['launcherName'] = 'Handwriting'
+          d['packageId'] = 'np.com.laxmannepal.texttohandwriting'
+          d['startUrl'] = '/Text-To-Handwriting/?source=android'
+          d['appVersion'] = '${{ inputs.version_name || github.ref_name }}'.replace('android-v','')
+          d['appVersionCode'] = int('${{ inputs.version_code || github.run_number }}')
+          d['signingKey'] = {'path': str(Path.cwd() / 'android/android-keystore'), 'alias': '${{ secrets.TTH_KEY_ALIAS || 'android' }}'}
+          p.write_text(json.dumps(d, indent=2) + '\n')
+          PY
+
+      - name: Build signed APK
+        env:
+          BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ env.BUILD_KEYSTORE_PASSWORD }}
+          BUBBLEWRAP_KEY_PASSWORD: ${{ env.BUILD_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          bubblewrap build --manifest=android/twa-manifest.json
+          test -f android/app-release-signed.apk
+          cp android/app-release-signed.apk Text-To-Handwriting.apk
+
+      - name: Generate signing fingerprint
+        run: |
+          keytool -list -v -keystore android/android-keystore \
+            -storepass "$BUILD_KEYSTORE_PASSWORD" \
+            -alias "$BUILD_KEY_ALIAS" | grep -E 'SHA256:' | tee signing-fingerprint.txt
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: text-to-handwriting-android
+          path: |
+            Text-To-Handwriting.apk
+            signing-fingerprint.txt
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/android-v') && secrets.TTH_KEYSTORE_BASE64 != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Text-To-Handwriting.apk
+          generate_release_notes: true
+          name: Text to Handwriting ${{ github.ref_name }}
