@@ -1,0 +1,113 @@
+name: Android Offline APK + AAB
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Android version name'
+        required: true
+        default: '1.0.0'
+      version_code:
+        description: 'Android version code'
+        required: true
+        default: '1'
+  push:
+    tags:
+      - 'offline-v*'
+
+permissions:
+  contents: write
+
+env:
+  VERSION_NAME: ${{ inputs.version_name || '1.0.0' }}
+  VERSION_CODE: ${{ inputs.version_code || github.run_number }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Stage and vendor offline web assets
+        run: python3 android-offline/scripts/package_web.py
+
+      - name: Verify no remote runtime dependencies in bundled HTML
+        run: |
+          set -euo pipefail
+          if grep -Eiq '(src|href)[[:space:]]*=[[:space:]]*["'"']https?://' android-offline/app/src/main/assets/www/index.html; then
+            echo 'Remote HTML dependency detected in bundled index.html'
+            grep -Ein '(src|href)[[:space:]]*=[[:space:]]*["'"']https?://' android-offline/app/src/main/assets/www/index.html || true
+            exit 1
+          fi
+
+      - name: Install Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.5'
+
+      - name: Create Gradle wrapper
+        working-directory: android-offline
+        run: gradle wrapper --gradle-version 9.5 --distribution-type bin
+
+      - name: Prepare signing
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.TTH_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.TTH_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.TTH_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.TTH_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${KEYSTORE_B64:-}" && -n "${KEYSTORE_PASSWORD:-}" && -n "${KEY_PASSWORD:-}" && -n "${KEY_ALIAS:-}" ]]; then
+            mkdir -p android-offline/keystore
+            printf '%s' "$KEYSTORE_B64" | base64 --decode > android-offline/keystore/release.jks
+            echo "ANDROID_KEYSTORE_PATH=$GITHUB_WORKSPACE/android-offline/keystore/release.jks" >> "$GITHUB_ENV"
+            echo "ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+            echo "ANDROID_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+            echo 'Stable signing configured.'
+          else
+            echo 'No production signing secrets configured. Building unsigned release plus debug APK.'
+          fi
+
+      - name: Build APK and AAB
+        working-directory: android-offline
+        env:
+          ANDROID_VERSION_NAME: ${{ env.VERSION_NAME }}
+          ANDROID_VERSION_CODE: ${{ env.VERSION_CODE }}
+        run: |
+          set -euo pipefail
+          ./gradlew clean assembleDebug assembleRelease bundleRelease --no-daemon
+          mkdir -p ../dist
+          cp app/build/outputs/apk/debug/app-debug.apk "../dist/Text-To-Handwriting-${VERSION_NAME}-debug.apk"
+          cp app/build/outputs/apk/release/app-release.apk "../dist/Text-To-Handwriting-${VERSION_NAME}-release.apk"
+          cp app/build/outputs/bundle/release/app-release.aab "../dist/Text-To-Handwriting-${VERSION_NAME}.aab"
+
+      - name: Verify APK contents
+        working-directory: android-offline
+        run: |
+          set -euo pipefail
+          unzip -l app/build/outputs/apk/release/app-release.apk | grep -q 'assets/www/index.html'
+          unzip -l app/build/outputs/apk/release/app-release.apk | grep -q 'assets/www/'
+
+      - name: Upload APK and AAB artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: text-to-handwriting-offline-android
+          path: dist/*
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/offline-v') && env.ANDROID_KEYSTORE_PATH != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          name: Text to Handwriting ${{ github.ref_name }}
