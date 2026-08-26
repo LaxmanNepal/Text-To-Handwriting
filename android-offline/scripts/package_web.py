@@ -15,7 +15,7 @@ WARNINGS = []
 
 
 def fetch(url):
-    req = Request(url, headers={'User-Agent': 'Mozilla/5.0 TextToHandwriting-Offline-Bundler/3.3'})
+    req = Request(url, headers={'User-Agent': 'Mozilla/5.0 TextToHandwriting-Offline-Bundler/3.4'})
     with urlopen(req, timeout=30) as r:
         return r.read(), r.headers.get_content_type()
 
@@ -118,10 +118,9 @@ def patch_html():
         local = vendor(m.group(3), 'script.js', required=True)
         return m.group(1) + m.group(2) + local + m.group(2) + m.group(4)
 
-    # Only vendor external <script src="..."> resources. This deliberately
-    # does not touch inline scripts or non-script URLs.
+    # Only external script src URLs are vendored. Inline scripts are untouched.
     html = re.sub(
-        r'(<script[^>]+\bsrc\s*=\s*)(["\'])(https?://[^"\']+)(["\'][^>]*>)',
+        r'(<script\b[^>]+\bsrc\s*=\s*)(["\'])(https?://[^"\']+)(["\'][^>]*>)',
         src_repl,
         html,
         flags=re.I,
@@ -131,25 +130,27 @@ def patch_html():
         tag = m.group(0)
         url = m.group(3)
 
-        # A bare fonts.googleapis.com URL is normally a preconnect resource,
-        # not a stylesheet. It must never be passed to google_fonts().
+        # IMPORTANT: link tags include preconnect, dns-prefetch, icons, manifests,
+        # alternate links, etc. Only an actual stylesheet should be downloaded.
         rel_match = re.search(r'\brel\s*=\s*(["\'])([^"\']+)\1', tag, flags=re.I)
-        rel_values = set((rel_match.group(2).lower().split() if rel_match else []))
+        rel_values = set(rel_match.group(2).lower().split()) if rel_match else set()
 
         if 'stylesheet' not in rel_values:
-            # Offline WebView has no use for external preconnect/dns-prefetch
-            # hints. Remove the tag instead of leaving an external URL behind.
             return ''
 
+        # Only real Google Fonts CSS URLs may enter google_fonts(). A bare
+        # fonts.googleapis.com preconnect URL can never be a stylesheet.
         if 'fonts.googleapis.com' in url:
+            parsed = urlparse(url)
+            if parsed.netloc.lower() != 'fonts.googleapis.com' or not parsed.query or not parse_qs(parsed.query).get('family'):
+                raise RuntimeError(f'Google Fonts stylesheet URL has no family parameter: {url}')
             local = google_fonts(url)
         else:
             local = vendor(url, 'style.css', required=True)
 
         return m.group(1) + m.group(2) + local + m.group(2) + m.group(4)
 
-    # Process only external link hrefs. The callback checks rel so
-    # preconnect/dns-prefetch/icon/etc. are never treated as CSS.
+    # External <link> URLs are considered only after checking rel="stylesheet".
     html = re.sub(
         r'(<link\b[^>]+\bhref\s*=\s*)(["\'])(https?://[^"\']+)(["\'][^>]*>)',
         link_repl,
