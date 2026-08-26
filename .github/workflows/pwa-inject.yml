@@ -1,8 +1,6 @@
 name: Enable PWA
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -15,39 +13,40 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Inject PWA metadata, registration and mobile responsive CSS
+      - name: Inject PWA metadata and responsive support
         shell: python
         run: |
           from pathlib import Path
           p = Path('index.html')
+          if not p.exists():
+              raise SystemExit('index.html is missing')
           text = p.read_text(encoding='utf-8')
-
-          manifest = '<link rel="manifest" href="./manifest.webmanifest">'
-          theme = '<meta name="theme-color" content="#0284c7">'
-          mobile = '<meta name="mobile-web-app-capable" content="yes">'
-          apple = '<meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="Handwriting">'
-          icon = '<link rel="icon" href="./icons/icon.svg" type="image/svg+xml">'
-          responsive = '<link rel="stylesheet" href="./mobile-responsive.css">'
-          script = '<script src="./pwa.js" defer></script>'
-
-          additions = [manifest, theme, mobile, apple, icon, responsive]
-          for tag in additions:
+          tags = [
+              '<link rel="manifest" href="./manifest.webmanifest">',
+              '<meta name="theme-color" content="#0284c7">',
+              '<meta name="mobile-web-app-capable" content="yes">',
+              '<meta name="apple-mobile-web-app-capable" content="yes">',
+              '<meta name="apple-mobile-web-app-status-bar-style" content="default">',
+              '<meta name="apple-mobile-web-app-title" content="Handwriting">',
+              '<link rel="icon" href="./icons/icon.svg" type="image/svg+xml">',
+              '<link rel="stylesheet" href="./mobile-responsive.css">'
+          ]
+          for tag in tags:
               if tag not in text:
                   text = text.replace('</head>', f'  {tag}\n</head>', 1)
-
+          script = '<script src="./pwa.js" defer></script>'
           if script not in text:
               text = text.replace('</body>', f'  {script}\n</body>', 1)
-
           p.write_text(text, encoding='utf-8')
 
-      - name: Commit injected PWA and responsive support
+      - name: Commit changes if needed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html
           if git diff --cached --quiet; then
-            echo "PWA and responsive support already injected"
+            echo "No changes needed"
           else
-            git commit -m "feat(ui): inject mobile responsive support [skip ci]"
+            git commit -m "chore(pwa): sync PWA metadata"
             git push
           fi
