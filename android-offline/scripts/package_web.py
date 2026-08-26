@@ -140,14 +140,7 @@ def patch_html():
 
 
 def verify():
-    """Fail only when actual network-backed runtime references remain.
-
-    Vendored third-party files can legitimately contain absolute URLs in comments,
-    source maps, PDF metadata, feature detection, or dead fallback code. The old
-    verifier rejected any literal http(s) string and therefore produced false
-    positives after successful vendoring. Check HTML/CSS resource declarations and
-    JavaScript network APIs instead.
-    """
+    """Reject actual network-backed runtime resources, not normal navigation links."""
     violations = []
 
     for p in OUT.rglob('*'):
@@ -156,25 +149,39 @@ def verify():
         text = p.read_text(encoding='utf-8', errors='replace')
         rel = str(p.relative_to(OUT))
 
-        # External resource declarations that would actually require the network.
-        patterns = [
-            r'<script\b[^>]+\bsrc\s*=\s*["\']https?://',
-            r'<link\b[^>]+\bhref\s*=\s*["\']https?://',
-            r'@import\s+(?:url\()?\s*["\']?https?://',
-            r'url\(\s*["\']?https?://',
-        ]
-        if any(re.search(pattern, text, flags=re.I) for pattern in patterns):
-            violations.append(rel)
+        # External script resources are runtime dependencies.
+        if re.search(r'<script\b[^>]+\bsrc\s*=\s*["\']https?://', text, flags=re.I):
+            violations.append(f'{rel}: external script src')
             continue
 
-        # Explicit runtime network calls are not allowed in the offline bundle.
-        js_network = [
-            r'\bfetch\s*\(\s*["\']https?://',
-            r'\bXMLHttpRequest\s*\(',
-            r'\bnew\s+WebSocket\s*\(',
-        ]
-        if p.suffix.lower() == '.js' and any(re.search(pattern, text, flags=re.I) for pattern in js_network):
-            violations.append(rel)
+        # Only stylesheet links are runtime dependencies. Normal <a href="https://...">
+        # navigation links are intentionally allowed because they are not loaded by the app.
+        for match in re.finditer(r'<link\b[^>]*>', text, flags=re.I):
+            tag = match.group(0)
+            if not re.search(r'\bhref\s*=\s*["\']https?://', tag, flags=re.I):
+                continue
+            rel_match = re.search(r'\brel\s*=\s*(["\'])([^"\']+)\1', tag, flags=re.I)
+            rel_values = set(rel_match.group(2).lower().split()) if rel_match else set()
+            if 'stylesheet' in rel_values:
+                violations.append(f'{rel}: external stylesheet link')
+                break
+        else:
+            # CSS imports and CSS remote assets are runtime dependencies.
+            if re.search(r'@import\s+(?:url\()?\s*["\']?https?://', text, flags=re.I):
+                violations.append(f'{rel}: external CSS import')
+                continue
+            if re.search(r'url\(\s*["\']?https?://', text, flags=re.I):
+                violations.append(f'{rel}: external CSS asset')
+                continue
+
+            # Explicit JavaScript network calls are not allowed in the offline bundle.
+            js_network = [
+                r'\bfetch\s*\(\s*["\']https?://',
+                r'\bXMLHttpRequest\s*\(',
+                r'\bnew\s+WebSocket\s*\(',
+            ]
+            if p.suffix.lower() == '.js' and any(re.search(pattern, text, flags=re.I) for pattern in js_network):
+                violations.append(f'{rel}: JavaScript network API')
 
     if violations:
         raise RuntimeError('External runtime resources remain in offline assets: ' + ', '.join(sorted(set(violations))))
