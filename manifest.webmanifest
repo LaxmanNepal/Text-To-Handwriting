@@ -7,8 +7,8 @@
   "start_url": "/Text-To-Handwriting/?source=pwa",
   "scope": "/Text-To-Handwriting/",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone"],
-  "orientation": "portrait-primary",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
   "theme_color": "#0284c7",
   "background_color": "#f1f5f9",
   "categories": ["education", "productivity", "utilities"],
@@ -21,6 +21,12 @@
       "name": "Create handwriting",
       "short_name": "Create",
       "url": "/Text-To-Handwriting/?action=create",
+      "icons": [{"src":"./icons/icon.svg","sizes":"any","type":"image/svg+xml"}]
+    },
+    {
+      "name": "Guide",
+      "short_name": "Guide",
+      "url": "/Text-To-Handwriting/#guide-section",
       "icons": [{"src":"./icons/icon.svg","sizes":"any","type":"image/svg+xml"}]
     }
   ]
