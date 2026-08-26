@@ -136,6 +136,11 @@
       border-radius: 4px;
     }
   </style>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <meta name="theme-color" content="#0284c7">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="Handwriting">
+  <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
 </head>
 <body class="bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-200 min-h-screen flex flex-col font-sans">
 
@@ -979,5 +984,6 @@ Vestibulum cursus urna vel nunc imperdiet suscipit. Ut eu augue egestas, porta o
       renderPaperLines();
     });
   </script>
+  <script src="./pwa.js" defer></script>
 </body>
 </html>
