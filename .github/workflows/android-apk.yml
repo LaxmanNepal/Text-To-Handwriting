@@ -40,9 +40,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
       - name: Install Bubblewrap
         run: npm install --global @bubblewrap/cli
+
+      - name: Verify toolchain
+        run: |
+          set -euo pipefail
+          java -version
+          node --version
+          npm --version
+          bubblewrap --version
 
       - name: Prepare signing key
         shell: bash
@@ -64,7 +73,6 @@ jobs:
             echo "STABLE_SIGNING=true" >> "$GITHUB_ENV"
           else
             echo "No stable signing secrets configured; creating a temporary CI signing key."
-            echo "This APK is for testing/sideloading only and cannot be used for seamless future updates."
             PASS='temporary-tth-ci-key-2026'
             keytool -genkeypair -v -keystore android/android-keystore -alias android \
               -keyalg RSA -keysize 2048 -validity 10000 -storepass "$PASS" -keypass "$PASS" \
@@ -75,23 +83,60 @@ jobs:
             echo "STABLE_SIGNING=false" >> "$GITHUB_ENV"
           fi
 
-      - name: Initialize Bubblewrap project
-        shell: bash
+      - name: Initialize Bubblewrap project non-interactively
+        shell: python
+        env:
+          BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ env.BUILD_KEYSTORE_PASSWORD }}
+          BUBBLEWRAP_KEY_PASSWORD: ${{ env.BUILD_KEY_PASSWORD }}
         run: |
-          set -euo pipefail
-          # Bubblewrap currently has no silent init mode; blank input accepts web-manifest defaults.
-          yes '' | head -n 18 | bubblewrap init \
-            --manifest="$APP_URL" \
-            --directory="android"
+          import os
+          import subprocess
+          from pathlib import Path
+
+          # Bubblewrap's init command is interactive. Feed valid answers through
+          # stdin instead of `yes | head`, which causes a SIGPIPE/exit 141 on CI.
+          answers = [
+              '',
+              '',
+              'Text to Handwriting',
+              'Handwriting',
+              'np.com.laxmannepal.texttohandwriting',
+              '${{ inputs.version_code || github.run_number }}',
+              'standalone',
+              'default',
+              '#0284c7',
+              '#ffffff',
+              'https://apps.laxmannepal.com.np/Text-To-Handwriting/icons/icon-512.png',
+              '',
+              '',
+              'n',
+              'n',
+              'NP',
+              'Laxman Nepal',
+              'Apps',
+              'Laxman Nepal',
+              os.environ['BUBBLEWRAP_KEYSTORE_PASSWORD'],
+              os.environ['BUBBLEWRAP_KEY_PASSWORD'],
+          ]
+          input_data = '\n'.join(answers) + '\n'
+          result = subprocess.run([
+              'bubblewrap', 'init',
+              '--manifest', os.environ['APP_URL'],
+              '--directory', 'android'
+          ], input=input_data, text=True, capture_output=True)
+          print(result.stdout)
+          print(result.stderr)
+          if result.returncode != 0:
+              raise SystemExit(f'Bubblewrap init failed with exit code {result.returncode}')
 
       - name: Set Android identity and version
-        shell: bash
+        shell: python
         run: |
-          set -euo pipefail
-          python3 - <<'PY'
           import json
           from pathlib import Path
           p = Path('android/twa-manifest.json')
+          if not p.exists():
+              raise SystemExit('android/twa-manifest.json was not generated')
           d = json.loads(p.read_text())
           d['name'] = 'Text to Handwriting'
           d['launcherName'] = 'Handwriting'
@@ -99,18 +144,14 @@ jobs:
           d['startUrl'] = '/Text-To-Handwriting/?source=android'
           d['appVersion'] = '${{ inputs.version_name || github.ref_name }}'.replace('android-v','')
           d['appVersionCode'] = int('${{ inputs.version_code || github.run_number }}')
-          d['signingKey'] = {
-            'path': str(Path.cwd() / 'android/android-keystore'),
-            'alias': '${{ secrets.TTH_KEY_ALIAS || 'android' }}'
-          }
+          d['signingKey']['path'] = str(Path.cwd() / 'android/android-keystore')
+          d['signingKey']['alias'] = '${{ env.BUILD_KEY_ALIAS }}'
           p.write_text(json.dumps(d, indent=2) + '\n')
-          PY
 
       - name: Regenerate Android project from final manifest
-        run: |
-          bubblewrap update --skipVersionUpgrade --manifest=android/twa-manifest.json
+        run: bubblewrap update --skipVersionUpgrade --manifest=android/twa-manifest.json
 
-      - name: Build signed APK
+      - name: Build signed APK and AAB
         env:
           BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ env.BUILD_KEYSTORE_PASSWORD }}
           BUBBLEWRAP_KEY_PASSWORD: ${{ env.BUILD_KEY_PASSWORD }}
@@ -118,7 +159,17 @@ jobs:
           set -euo pipefail
           bubblewrap build --manifest=android/twa-manifest.json
           test -f android/app-release-signed.apk
+          test -f android/app-release-bundle.aab
           cp android/app-release-signed.apk Text-To-Handwriting.apk
+          cp android/app-release-bundle.aab Text-To-Handwriting.aab
+
+      - name: Verify artifacts
+        run: |
+          set -euo pipefail
+          unzip -l Text-To-Handwriting.apk | grep -q 'AndroidManifest.xml'
+          test -s Text-To-Handwriting.apk
+          test -s Text-To-Handwriting.aab
+          sha256sum Text-To-Handwriting.apk Text-To-Handwriting.aab | tee SHA256SUMS.txt
 
       - name: Generate signing fingerprint
         run: |
@@ -126,12 +177,14 @@ jobs:
             -storepass "$BUILD_KEYSTORE_PASSWORD" -alias "$BUILD_KEY_ALIAS" \
             | grep -E 'SHA256:' | tee signing-fingerprint.txt
 
-      - name: Upload APK artifact
+      - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: text-to-handwriting-android
+          name: text-to-handwriting-android-${{ inputs.version_name || github.run_number }}
           path: |
             Text-To-Handwriting.apk
+            Text-To-Handwriting.aab
+            SHA256SUMS.txt
             signing-fingerprint.txt
           retention-days: 30
 
@@ -139,6 +192,10 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/android-v') && env.STABLE_SIGNING == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          files: Text-To-Handwriting.apk
+          files: |
+            Text-To-Handwriting.apk
+            Text-To-Handwriting.aab
+            SHA256SUMS.txt
+            signing-fingerprint.txt
           generate_release_notes: true
           name: Text to Handwriting ${{ github.ref_name }}
