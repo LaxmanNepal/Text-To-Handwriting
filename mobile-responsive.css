@@ -4,6 +4,7 @@ body { overflow-x: hidden; }
 *, *::before, *::after { box-sizing: border-box; }
 button, a, select, input, textarea { -webkit-tap-highlight-color: transparent; }
 button, select, input[type="file"], input[type="color"] { min-height: 42px; }
+
 #paper-wrapper { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
 
 @media (max-width: 639px) {
@@ -12,56 +13,68 @@ button, select, input[type="file"], input[type="color"] { min-height: 42px; }
   header > div { height: 58px !important; padding-left: 12px !important; padding-right: 12px !important; }
   header h1 { font-size: 0.94rem !important; }
   header .bg-blue-600 { padding: 0.5rem !important; }
+
   main { width: 100% !important; max-width: 100% !important; padding: 10px 10px 28px !important; margin: 0 !important; gap: 0 !important; }
   main > .lg\\:hidden { position: sticky; top: 58px; z-index: 30; margin: 0 -2px 12px !important; padding: 4px !important; backdrop-filter: blur(12px); }
   main > .grid { display: flex !important; flex-direction: column !important; gap: 18px !important; width: 100% !important; }
+
   #paper-section, #customization-section, #output-section { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }
   #paper-section { gap: 10px !important; }
   #paper-section > div:first-child { align-items: center; }
   #paper-section h2 { font-size: 0.92rem !important; }
+
   #paper-wrapper { width: 100% !important; padding: 7px !important; border-radius: 14px !important; overflow-x: hidden !important; }
   #paper-sheet { width: 100% !important; max-width: 100% !important; min-height: 560px !important; height: auto !important; padding: 12px !important; border-radius: 3px !important; }
+
   #paper-top-space { height: 26px !important; }
 
-  /* Keep the typed handwriting clearly to the RIGHT of the red margin line. */
-  #paper-left-gap { width: 42px !important; flex: 0 0 42px !important; }
-  .paper-margin-line { left: 40px !important; width: 1px !important; }
-  .paper-content { min-height: 500px !important; width: 100% !important; max-width: 100% !important; font-size: 12pt !important; line-height: 30px !important; overflow-wrap: anywhere !important; word-break: normal !important; padding-top: 4px !important; padding-left: 2px !important; }
+  /* IMPORTANT: the red margin is measured from the paper-sheet edge, while the text starts after
+     the sheet padding + #paper-left-gap. Keep the gap larger than that distance so text can NEVER
+     begin on or to the left of the red margin. */
+  #paper-margin-line { left: 40px !important; width: 2px !important; }
+  #paper-left-gap { width: 38px !important; flex: 0 0 38px !important; }
+  #paper-content { margin-left: 0 !important; padding-left: 0 !important; padding-top: 4px !important; }
+
+  .paper-content { min-height: 500px !important; width: 100% !important; max-width: 100% !important; font-size: 12pt !important; line-height: 30px !important; overflow-wrap: anywhere !important; word-break: normal !important; }
   .paper-line-row { height: 30px !important; }
   .paper-content img.embedded-diagram { max-width: 100% !important; }
 
   #paper-section .flex.items-center.justify-between.gap-2.flex-wrap { width: 100%; }
   #draw-modal-open-btn, #clear-input-btn { min-height: 40px !important; padding: 8px 10px !important; }
   #char-count, #word-count { font-size: 10px !important; }
+
   #customization-section { gap: 14px !important; }
   #customization-section > div { width: 100% !important; max-width: 100% !important; padding: 14px !important; border-radius: 16px !important; }
   #customization-section input, #customization-section select, #customization-section textarea { width: 100% !important; max-width: 100% !important; min-width: 0 !important; font-size: 16px !important; }
   #customization-section .grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; }
   #customization-section .grid > * { min-width: 0 !important; }
-  #output-section { scroll-margin-top: 76px; }
-  #paper-section, #customization-section { scroll-margin-top: 76px; }
+
+  #output-section, #paper-section, #customization-section { scroll-margin-top: 76px; }
   [role="dialog"], .fixed.inset-0 > div, #draw-modal { max-width: calc(100vw - 20px) !important; }
   #diagram-canvas { max-width: 100% !important; touch-action: none; }
   label, p, h1, h2, h3, h4, span, button { overflow-wrap: anywhere; }
   .truncate { overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
 }
 
-@media (min-width: 640px) and (max-width: 1023px) {
-  main { padding-left: 18px !important; padding-right: 18px !important; }
-  #paper-sheet { max-width: min(650px, 100%) !important; }
-  #customization-section > div { padding: 18px !important; }
-}
-
 @media (max-width: 380px) {
   main { padding-left: 7px !important; padding-right: 7px !important; }
   #paper-wrapper { padding: 5px !important; }
   #paper-sheet { padding: 9px !important; min-height: 520px !important; }
-  /* Extra clearance is intentional: text must never touch/cross the red margin. */
-  #paper-left-gap { width: 35px !important; flex-basis: 35px !important; }
-  .paper-margin-line { left: 34px !important; }
-  .paper-content { font-size: 11.5pt !important; line-height: 28px !important; padding-left: 2px !important; }
+
+  /* At <=380px the sheet has 9px internal padding and the margin is at 34px.
+     38px gap means the first text pixel starts at ~47px, safely to the right. */
+  #paper-margin-line { left: 34px !important; width: 2px !important; }
+  #paper-left-gap { width: 38px !important; flex-basis: 38px !important; }
+  #paper-content { margin-left: 0 !important; padding-left: 0 !important; }
+  .paper-content { font-size: 11.5pt !important; line-height: 28px !important; }
   .paper-line-row { height: 28px !important; }
   main > .lg\\:hidden span { font-size: 10px !important; }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  main { padding-left: 18px !important; padding-right: 18px !important; }
+  #paper-sheet { max-width: min(650px, 100%) !important; }
+  #customization-section > div { padding: 18px !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {
