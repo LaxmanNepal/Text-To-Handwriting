@@ -15,7 +15,7 @@ WARNINGS = []
 
 
 def fetch(url):
-    req = Request(url, headers={'User-Agent': 'Mozilla/5.0 TextToHandwriting-Offline-Bundler/3.4'})
+    req = Request(url, headers={'User-Agent': 'Mozilla/5.0 TextToHandwriting-Offline-Bundler/3.5'})
     with urlopen(req, timeout=30) as r:
         return r.read(), r.headers.get_content_type()
 
@@ -49,11 +49,10 @@ def vendor(url, kind='asset', required=True):
 
 
 def google_fonts(url):
-    """Download a Google Fonts CSS URL and rewrite its font files locally."""
     parsed = urlparse(url)
     families = parse_qs(parsed.query).get('family', [])
     if not families:
-        raise RuntimeError(f'Google Fonts URL contains no families: {url}')
+        raise RuntimeError(f'Google Fonts stylesheet URL contains no families: {url}')
 
     css_parts = []
     for family in families:
@@ -62,10 +61,7 @@ def google_fonts(url):
             part, _ = fetch(single)
             css_parts.append(part.decode('utf-8', errors='replace'))
         except (HTTPError, URLError, TimeoutError) as exc:
-            WARNINGS.append(f'Google font family skipped: {family} ({exc})')
-
-    if not css_parts:
-        raise RuntimeError(f'No Google Font family could be downloaded from: {url}')
+            raise RuntimeError(f'Cannot download Google Font family {family}: {exc}') from exc
 
     name = filename(url, 'google-fonts.css')
     target = OUT / 'vendor' / name
@@ -111,53 +107,32 @@ def patch_html():
     path = OUT / 'index.html'
     if not path.exists():
         raise RuntimeError('index.html not found')
-
     html = path.read_text(encoding='utf-8', errors='replace')
 
     def src_repl(m):
         local = vendor(m.group(3), 'script.js', required=True)
         return m.group(1) + m.group(2) + local + m.group(2) + m.group(4)
 
-    # Only external script src URLs are vendored. Inline scripts are untouched.
-    html = re.sub(
-        r'(<script\b[^>]+\bsrc\s*=\s*)(["\'])(https?://[^"\']+)(["\'][^>]*>)',
-        src_repl,
-        html,
-        flags=re.I,
-    )
+    html = re.sub(r'(<script\b[^>]+\bsrc\s*=\s*)(["\'])(https?://[^"\']+)(["\'][^>]*>)', src_repl, html, flags=re.I)
 
     def link_repl(m):
         tag = m.group(0)
         url = m.group(3)
-
-        # IMPORTANT: link tags include preconnect, dns-prefetch, icons, manifests,
-        # alternate links, etc. Only an actual stylesheet should be downloaded.
         rel_match = re.search(r'\brel\s*=\s*(["\'])([^"\']+)\1', tag, flags=re.I)
         rel_values = set(rel_match.group(2).lower().split()) if rel_match else set()
-
         if 'stylesheet' not in rel_values:
             return ''
-
-        # Only real Google Fonts CSS URLs may enter google_fonts(). A bare
-        # fonts.googleapis.com preconnect URL can never be a stylesheet.
         if 'fonts.googleapis.com' in url:
             parsed = urlparse(url)
-            if parsed.netloc.lower() != 'fonts.googleapis.com' or not parsed.query or not parse_qs(parsed.query).get('family'):
-                raise RuntimeError(f'Google Fonts stylesheet URL has no family parameter: {url}')
+            families = parse_qs(parsed.query).get('family', [])
+            if parsed.netloc.lower() != 'fonts.googleapis.com' or not families:
+                raise RuntimeError(f'Invalid Google Fonts stylesheet URL: {url}')
             local = google_fonts(url)
         else:
             local = vendor(url, 'style.css', required=True)
-
         return m.group(1) + m.group(2) + local + m.group(2) + m.group(4)
 
-    # External <link> URLs are considered only after checking rel="stylesheet".
-    html = re.sub(
-        r'(<link\b[^>]+\bhref\s*=\s*)(["\'])(https?://[^"\']+)(["\'][^>]*>)',
-        link_repl,
-        html,
-        flags=re.I,
-    )
-
+    html = re.sub(r'(<link\b[^>]+\bhref\s*=\s*)(["\'])(https?://[^"\']+)(["\'][^>]*>)', link_repl, html, flags=re.I)
     path.write_text(html, encoding='utf-8')
 
 
