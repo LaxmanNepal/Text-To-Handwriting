@@ -24,6 +24,7 @@ permissions:
 env:
   VERSION_NAME: ${{ inputs.version_name || '1.0.0' }}
   VERSION_CODE: ${{ inputs.version_code || github.run_number }}
+  GRADLE_VERSION: '9.5.1'
 
 jobs:
   build:
@@ -55,11 +56,11 @@ jobs:
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '9.5'
+          gradle-version: ${{ env.GRADLE_VERSION }}
 
       - name: Generate Gradle wrapper
         working-directory: android-offline
-        run: gradle wrapper --gradle-version 9.5 --distribution-type bin
+        run: gradle wrapper --gradle-version "${GRADLE_VERSION}" --distribution-type bin
 
       - name: Verify Android project
         working-directory: android-offline
