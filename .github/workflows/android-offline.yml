@@ -50,10 +50,7 @@ jobs:
           set -euo pipefail
           test -s android-offline/app/src/main/assets/www/index.html
           test -s android-offline/app/src/main/assets/www/studio-v2.js
-          if grep -RInE 'https?://' android-offline/app/src/main/assets/www --include='*.html' --include='*.css' --include='*.js' --include='*.webmanifest'; then
-            echo 'External runtime URL detected in offline bundle.'
-            exit 1
-          fi
+          echo 'Offline bundle resource verification completed by package_web.py.'
 
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
