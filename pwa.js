@@ -9,6 +9,16 @@
   const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
   const editor = () => document.querySelector('.paper-content') || document.getElementById('paper-content');
 
+  const loadScript = src => new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) return resolve();
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = false;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error(`Failed to load ${src}`));
+    document.head.appendChild(script);
+  });
+
   const toast = message => {
     let el = document.getElementById('pwa-toast');
     if (!el) {
@@ -66,10 +76,10 @@
     const e = editor();
     if (!e) return;
     try {
-      const payload = { html: e.innerHTML, savedAt: Date.now() };
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ html: e.innerHTML, savedAt: Date.now() }));
       if (window.TTHStorage?.put) {
-        window.TTHStorage.put({ id: 'default', title: 'Untitled handwriting', text: e.textContent || '', html: e.innerHTML }).catch(error => console.warn('[TTH] autosave failed:', error));
+        window.TTHStorage.put({ id: 'default', title: 'Untitled handwriting', text: e.textContent || '', html: e.innerHTML })
+          .catch(error => console.warn('[TTH] autosave failed:', error));
       }
     } catch (error) {
       console.warn('[TTH] draft save failed:', error);
@@ -121,7 +131,17 @@
     toast('Text to Handwriting is installed.');
   });
 
-  window.addEventListener('DOMContentLoaded', () => {
+  window.addEventListener('DOMContentLoaded', async () => {
+    try {
+      await loadScript(`${APP_SCOPE}offline-storage.js`);
+      await loadScript(`${APP_SCOPE}documents.js`);
+      await loadScript(`${APP_SCOPE}studio-v2.js?v=4`);
+      await loadScript(`${APP_SCOPE}page-history.js?v=2`);
+    } catch (error) {
+      console.error('[TTH] local module bootstrap failed:', error);
+      toast('Some app features could not be loaded. Please refresh.');
+    }
+
     restoreDraft();
     const e = editor();
     let saveTimer;
