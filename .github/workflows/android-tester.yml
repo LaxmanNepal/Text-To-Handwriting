@@ -17,8 +17,10 @@ permissions:
 
 env:
   MANIFEST_URL: https://apps.laxmannepal.com.np/Text-To-Handwriting/manifest.webmanifest
+  HOST: apps.laxmannepal.com.np
   APP_START_URL: /Text-To-Handwriting/?source=android-tester
   PACKAGE_ID: np.com.laxmannepal.texttohandwriting
+  ICON_URL: https://apps.laxmannepal.com.np/Text-To-Handwriting/icons/icon.svg
 
 jobs:
   build-apk:
@@ -56,7 +58,7 @@ jobs:
           set -euo pipefail
           SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
           test -x "$SDKMANAGER"
-          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
           "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
           if [ ! -e "$ANDROID_SDK_ROOT/tools" ]; then
             ln -s "$ANDROID_SDK_ROOT/cmdline-tools/latest" "$ANDROID_SDK_ROOT/tools"
@@ -66,15 +68,15 @@ jobs:
           test -d "$ANDROID_SDK_ROOT/build-tools/35.0.0"
 
       - name: Install Bubblewrap
-        run: npm install --global @bubblewrap/cli@latest
+        run: npm install --global @bubblewrap/cli@1.25.0
 
       - name: Configure Bubblewrap
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$HOME/.bubblewrap"
-          printf '{\n  "jdkPath": "%s",\n  "androidSdkPath": "%s"\n}\n' "$JAVA_HOME" "$ANDROID_SDK_ROOT" > "$HOME/.bubblewrap/config.json"
+          bubblewrap updateConfig --jdkPath="$JAVA_HOME" --androidSdkPath="$ANDROID_SDK_ROOT"
           bubblewrap doctor
+          bubblewrap --version
 
       - name: Create tester signing key
         shell: bash
@@ -95,79 +97,111 @@ jobs:
           echo "BUILD_KEY_PASSWORD=$PASS" >> "$GITHUB_ENV"
           echo "BUILD_KEY_ALIAS=android" >> "$GITHUB_ENV"
 
-      - name: Initialize Bubblewrap project
+      - name: Generate Bubblewrap manifest non-interactively
         shell: python
         env:
-          MANIFEST_URL: ${{ env.MANIFEST_URL }}
+          HOST: ${{ env.HOST }}
           APP_START_URL: ${{ env.APP_START_URL }}
           PACKAGE_ID: ${{ env.PACKAGE_ID }}
+          MANIFEST_URL: ${{ env.MANIFEST_URL }}
+          ICON_URL: ${{ env.ICON_URL }}
+          VERSION_NAME: ${{ inputs.version_name }}
+          VERSION_CODE: ${{ inputs.version_code }}
         run: |
-          import os, subprocess
+          import json
+          import os
+          from pathlib import Path
 
-          # Bubblewrap init is interactive. The first two answers are the
-          # manifest host and the relative launch path. Previously these were
-          # omitted, shifting every subsequent answer into the wrong prompt.
-          answers = [
-              'apps.laxmannepal.com.np',
-              os.environ['APP_START_URL'],
-              'Text to Handwriting',
-              'Handwriting',
-              os.environ['PACKAGE_ID'],
-              '${{ inputs.version_code }}',
-              '',
-              '',
-              '',
-              '',
-              'https://apps.laxmannepal.com.np/Text-To-Handwriting/icons/icon.svg',
-              '',
-              '',
-              'n',
-              'n',
-              '/home/runner/work/Text-To-Handwriting/Text-To-Handwriting/android/tester-keystore.jks',
-              'android'
-          ]
+          version_code = int(os.environ['VERSION_CODE'])
+          version_name = os.environ['VERSION_NAME']
+          keystore = str((Path.cwd() / 'android/tester-keystore.jks').resolve())
 
-          proc = subprocess.run(
-              ['bubblewrap', 'init', '--manifest', os.environ['MANIFEST_URL'], '--directory', 'android'],
-              input='\n'.join(answers) + '\n',
-              text=True,
-              capture_output=True
-          )
-          print(proc.stdout)
-          print(proc.stderr)
-          if proc.returncode != 0:
-              raise SystemExit(f'Bubblewrap init failed with exit code {proc.returncode}')
+          manifest = {
+              'packageId': os.environ['PACKAGE_ID'],
+              'host': os.environ['HOST'],
+              'name': 'Text to Handwriting',
+              'launcherName': 'Handwriting',
+              'display': 'standalone',
+              'themeColor': '#0284c7',
+              'themeColorDark': '#0284c7',
+              'navigationColor': '#0284c7',
+              'navigationColorDark': '#000000',
+              'navigationDividerColor': '#000000',
+              'navigationDividerColorDark': '#000000',
+              'backgroundColor': '#f1f5f9',
+              'startUrl': os.environ['APP_START_URL'],
+              'iconUrl': os.environ['ICON_URL'],
+              'splashScreenFadeOutDuration': 300,
+              'signingKey': {
+                  'path': keystore,
+                  'alias': 'android'
+              },
+              'appVersionName': version_name,
+              'appVersionCode': version_code,
+              'appVersion': version_name,
+              'shortcuts': [],
+              'generatorApp': 'bubblewrap-cli',
+              'webManifestUrl': os.environ['MANIFEST_URL'],
+              'fallbackType': 'customtabs',
+              'features': {},
+              'alphaDependencies': {'enabled': False},
+              'enableSiteSettingsShortcut': True,
+              'isChromeOSOnly': False,
+              'isMetaQuest': False,
+              'fullScopeUrl': 'https://' + os.environ['HOST'] + '/Text-To-Handwriting/',
+              'minSdkVersion': 23,
+              'orientation': 'default',
+              'fingerprints': [],
+              'additionalTrustedOrigins': [],
+              'retainedBundles': [],
+              'protocolHandlers': [],
+              'fileHandlers': [],
+              'launchHandlerClientMode': ''
+          }
 
-      - name: Configure TWA manifest and signing
+          path = Path('android/twa-manifest.json')
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
+          print(path.read_text(encoding='utf-8'))
+
+      - name: Validate Bubblewrap manifest
         shell: python
         run: |
           import json
           from pathlib import Path
+          from urllib.parse import urlparse
 
-          path = Path('android/twa-manifest.json')
-          if not path.exists():
-              raise SystemExit('twa-manifest.json was not generated')
-          manifest = json.loads(path.read_text(encoding='utf-8'))
-          manifest['name'] = 'Text to Handwriting'
-          manifest['launcherName'] = 'Handwriting'
-          manifest['packageId'] = '${{ env.PACKAGE_ID }}'
-          manifest['startUrl'] = '${{ env.APP_START_URL }}'
-          manifest['appVersion'] = '${{ inputs.version_name }}'
-          manifest['appVersionName'] = '${{ inputs.version_name }}'
-          manifest['appVersionCode'] = int('${{ inputs.version_code }}')
-          signing = manifest.setdefault('signingKey', {})
-          signing['path'] = str(Path.cwd() / 'android/tester-keystore.jks')
-          signing['alias'] = '${{ env.BUILD_KEY_ALIAS }}'
-          path.write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
+          p = Path('android/twa-manifest.json')
+          data = json.loads(p.read_text(encoding='utf-8'))
+          required = ['packageId', 'host', 'name', 'startUrl', 'iconUrl', 'signingKey']
+          missing = [key for key in required if not data.get(key)]
+          if missing:
+              raise SystemExit('Missing Bubblewrap fields: ' + ', '.join(missing))
+          if urlparse('https://' + data['host']).hostname != data['host']:
+              raise SystemExit('Invalid host: ' + data['host'])
+          if not data['startUrl'].startswith('/'):
+              raise SystemExit('startUrl must be relative: ' + data['startUrl'])
+          if data['packageId'] != '${{ env.PACKAGE_ID }}':
+              raise SystemExit('Unexpected package ID')
+          print('Bubblewrap manifest validation passed.')
 
-      - name: Regenerate Android project
-        run: bubblewrap update --skipVersionUpgrade --manifest=android/twa-manifest.json
-
-      - name: Build tester APK
+      - name: Generate Android project
         shell: bash
         run: |
           set -euo pipefail
-          bubblewrap build --manifest=android/twa-manifest.json
+          bubblewrap update --manifest=android/twa-manifest.json --skipVersionUpgrade
+          test -f android/twa-manifest.json
+          test -f android/build.gradle || test -f android/build.gradle.kts
+          test -f android/app/build.gradle || test -f android/app/build.gradle.kts
+
+      - name: Build tester APK
+        shell: bash
+        env:
+          BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ env.BUILD_KEYSTORE_PASSWORD }}
+          BUBBLEWRAP_KEY_PASSWORD: ${{ env.BUILD_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          bubblewrap build --manifest=android/twa-manifest.json --signingKeyPath="$GITHUB_WORKSPACE/android/tester-keystore.jks" --signingKeyAlias="$BUILD_KEY_ALIAS"
           test -s android/app-release-signed.apk
           mkdir -p dist
           cp android/app-release-signed.apk "dist/Text-To-Handwriting-${{ inputs.version_name }}-tester.apk"
