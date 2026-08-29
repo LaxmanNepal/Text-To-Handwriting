@@ -1,0 +1,31 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'np.com.laxmannepal.texttohandwriting'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'np.com.laxmannepal.texttohandwriting'
+        minSdk 23
+        targetSdk 35
+        versionCode Integer.parseInt(System.getenv().getOrDefault('VERSION_CODE', '1'))
+        versionName System.getenv().getOrDefault('VERSION_NAME', '1.0.0')
+    }
+
+    signingConfigs {
+        release {
+            storeFile file(System.getenv('RELEASE_KEYSTORE'))
+            storePassword System.getenv('RELEASE_KEYSTORE_PASSWORD')
+            keyAlias System.getenv('RELEASE_KEY_ALIAS')
+            keyPassword System.getenv('RELEASE_KEY_PASSWORD')
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            signingConfig signingConfigs.release
+        }
+    }
+}
