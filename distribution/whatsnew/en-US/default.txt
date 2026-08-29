@@ -1,0 +1,5 @@
+Text to Handwriting Android release.
+
+- Create handwriting-style documents from text.
+- Export and save your work.
+- Improved mobile experience and stability.
