@@ -45,44 +45,25 @@ jobs:
         run: |
           set -euo pipefail
           SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
-          if [ -z "$SDK" ] || [ ! -d "$SDK" ]; then
-            echo "GitHub runner Android SDK was not found"
-            exit 1
-          fi
+          test -n "$SDK" && test -d "$SDK"
           echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
           echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
           echo "Using Android SDK: $SDK"
-          echo "Using Java: $JAVA_HOME"
 
       - name: Install Android SDK components
         shell: bash
         run: |
           set -euo pipefail
           SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
-          if [ ! -x "$SDKMANAGER" ]; then
-            echo "sdkmanager not found at $SDKMANAGER"
-            find "$ANDROID_SDK_ROOT/cmdline-tools" -maxdepth 3 -type f -name sdkmanager -print || true
-            exit 1
-          fi
+          test -x "$SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-
-          # Bubblewrap's SDK validator accepts an SDK root containing either
-          # tools/bin or bin. GitHub-hosted runners use cmdline-tools/latest.
-          # Expose the modern directory using the legacy-compatible tools path.
           if [ ! -e "$ANDROID_SDK_ROOT/tools" ]; then
             ln -s "$ANDROID_SDK_ROOT/cmdline-tools/latest" "$ANDROID_SDK_ROOT/tools"
           fi
-
-          test -d "$ANDROID_SDK_ROOT/tools"
           test -x "$ANDROID_SDK_ROOT/tools/bin/sdkmanager"
-          test -d "$ANDROID_SDK_ROOT/platform-tools"
           test -d "$ANDROID_SDK_ROOT/platforms/android-35"
           test -d "$ANDROID_SDK_ROOT/build-tools/35.0.0"
-
-          echo "SDK layout validated for Bubblewrap:"
-          ls -ld "$ANDROID_SDK_ROOT/tools"
-          ls -ld "$ANDROID_SDK_ROOT/tools/bin"
 
       - name: Install Bubblewrap
         run: npm install --global @bubblewrap/cli@latest
@@ -92,25 +73,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$HOME/.bubblewrap"
-          cat > "$HOME/.bubblewrap/config.json" <<EOF
-          {
-            "jdkPath": "$JAVA_HOME",
-            "androidSdkPath": "$ANDROID_SDK_ROOT"
-          }
-          EOF
-          echo "Bubblewrap config:"
-          cat "$HOME/.bubblewrap/config.json"
+          printf '{\n  "jdkPath": "%s",\n  "androidSdkPath": "%s"\n}\n' "$JAVA_HOME" "$ANDROID_SDK_ROOT" > "$HOME/.bubblewrap/config.json"
           bubblewrap doctor
 
-      - name: Verify toolchain
-        run: |
-          set -euo pipefail
-          java -version
-          node --version
-          npm --version
-          bubblewrap --version
-
-      - name: Create temporary tester signing key
+      - name: Create tester signing key
         shell: bash
         run: |
           set -euo pipefail
@@ -133,27 +99,32 @@ jobs:
         shell: python
         env:
           MANIFEST_URL: ${{ env.MANIFEST_URL }}
+          APP_START_URL: ${{ env.APP_START_URL }}
+          PACKAGE_ID: ${{ env.PACKAGE_ID }}
         run: |
-          import os
-          import subprocess
+          import os, subprocess
 
-          # The manifest supplies the website identity, icon and display values.
-          # Bubblewrap still asks for a small number of app-generation choices.
+          # Bubblewrap init is interactive. The first two answers are the
+          # manifest host and the relative launch path. Previously these were
+          # omitted, shifting every subsequent answer into the wrong prompt.
           answers = [
+              'apps.laxmannepal.com.np',
+              os.environ['APP_START_URL'],
               'Text to Handwriting',
               'Handwriting',
-              '${{ env.PACKAGE_ID }}',
+              os.environ['PACKAGE_ID'],
               '${{ inputs.version_code }}',
-              'standalone',
-              'portrait',
-              '#0284c7',
-              '#f1f5f9',
+              '',
+              '',
+              '',
+              '',
               'https://apps.laxmannepal.com.np/Text-To-Handwriting/icons/icon.svg',
               '',
               '',
               'n',
               'n',
-              'n'
+              '/home/runner/work/Text-To-Handwriting/Text-To-Handwriting/android/tester-keystore.jks',
+              'android'
           ]
 
           proc = subprocess.run(
@@ -167,7 +138,7 @@ jobs:
           if proc.returncode != 0:
               raise SystemExit(f'Bubblewrap init failed with exit code {proc.returncode}')
 
-      - name: Configure TWA manifest
+      - name: Configure TWA manifest and signing
         shell: python
         run: |
           import json
@@ -176,23 +147,18 @@ jobs:
           path = Path('android/twa-manifest.json')
           if not path.exists():
               raise SystemExit('twa-manifest.json was not generated')
-
           manifest = json.loads(path.read_text(encoding='utf-8'))
-          manifest.update({
-              'name': 'Text to Handwriting',
-              'launcherName': 'Handwriting',
-              'packageId': '${{ env.PACKAGE_ID }}',
-              'startUrl': '${{ env.APP_START_URL }}',
-              'appVersion': '${{ inputs.version_name }}',
-              'appVersionCode': int('${{ inputs.version_code }}')
-          })
-
+          manifest['name'] = 'Text to Handwriting'
+          manifest['launcherName'] = 'Handwriting'
+          manifest['packageId'] = '${{ env.PACKAGE_ID }}'
+          manifest['startUrl'] = '${{ env.APP_START_URL }}'
+          manifest['appVersion'] = '${{ inputs.version_name }}'
+          manifest['appVersionName'] = '${{ inputs.version_name }}'
+          manifest['appVersionCode'] = int('${{ inputs.version_code }}')
           signing = manifest.setdefault('signingKey', {})
           signing['path'] = str(Path.cwd() / 'android/tester-keystore.jks')
           signing['alias'] = '${{ env.BUILD_KEY_ALIAS }}'
-
           path.write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
-          print(path.read_text(encoding='utf-8'))
 
       - name: Regenerate Android project
         run: bubblewrap update --skipVersionUpgrade --manifest=android/twa-manifest.json
@@ -215,10 +181,7 @@ jobs:
           unzip -t "$APK" >/dev/null
           apksigner verify --verbose --print-certs "$APK"
           sha256sum "$APK" | tee dist/SHA256SUM.txt
-          keytool -list -v \
-            -keystore android/tester-keystore.jks \
-            -storepass "$BUILD_KEYSTORE_PASSWORD" \
-            -alias "$BUILD_KEY_ALIAS" | grep 'SHA256:' | tee dist/SHA256-CERTIFICATE.txt
+          keytool -list -v -keystore android/tester-keystore.jks -storepass "$BUILD_KEYSTORE_PASSWORD" -alias "$BUILD_KEY_ALIAS" | grep 'SHA256:' | tee dist/SHA256-CERTIFICATE.txt
 
       - name: Upload tester APK
         uses: actions/upload-artifact@v4
