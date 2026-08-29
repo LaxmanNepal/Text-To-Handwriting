@@ -1,0 +1,92 @@
+name: Repository Quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: ''
+
+      - name: Validate JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          find . -maxdepth 2 -type f -name '*.js' -print0 | while IFS= read -r -d '' file; do
+            echo "Checking $file"
+            node --check "$file"
+          done
+
+      - name: Validate manifest JSON
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+          for name in ('manifest.webmanifest',):
+              data = json.loads(Path(name).read_text(encoding='utf-8'))
+              assert data['name']
+              assert data['short_name']
+              assert data['start_url'].startswith('/Text-To-Handwriting/')
+              assert data['scope'].startswith('/Text-To-Handwriting/')
+          print('manifest.webmanifest: OK')
+
+      - name: Validate local runtime assets
+        shell: python
+        run: |
+          import re
+          from pathlib import Path
+          text = Path('index.html').read_text(encoding='utf-8')
+          refs = set()
+          refs.update(re.findall(r'<script[^>]+src=["\']([^"\']+)', text))
+          refs.update(re.findall(r'<link[^>]+href=["\']([^"\']+)', text))
+          missing = []
+          for ref in refs:
+              if ref.startswith(('http://', 'https://', '//', '#', 'data:')):
+                  continue
+              path = ref.split('?', 1)[0].split('#', 1)[0]
+              if path.startswith('./'):
+                  path = path[2:]
+              if not Path(path).exists():
+                  missing.append(path)
+          if missing:
+              raise SystemExit('Missing local runtime assets:\n' + '\n'.join(sorted(missing)))
+          print('All local index.html assets exist.')
+
+      - name: Validate service-worker shell
+        shell: python
+        run: |
+          import re
+          from pathlib import Path
+          text = Path('sw.js').read_text(encoding='utf-8')
+          refs = re.findall(r'`\$\{APP_SCOPE\}([^`]+)`', text)
+          missing = [ref for ref in refs if not Path(ref.split('?', 1)[0]).exists()]
+          if missing:
+              raise SystemExit('Service-worker references missing files:\n' + '\n'.join(missing))
+          if 'offline.js' in text:
+              raise SystemExit('Obsolete offline.js reference remains in sw.js')
+          print('Service-worker shell: OK')
+
+      - name: Detect broken offline loader references
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RIn --exclude-dir=.git --exclude='quality.yml' 'offline\.js' .; then
+            echo 'Broken offline.js reference detected.'
+            exit 1
+          fi
+          echo 'No obsolete offline.js reference found.'
