@@ -39,7 +39,7 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '22'
-          cache: ''
+          package-manager-cache: false
 
       - name: Configure Android SDK environment
         shell: bash
@@ -53,7 +53,7 @@ jobs:
           echo "JAVA_HOME=$JAVA_HOME"
           echo "ANDROID_SDK_ROOT=$SDK"
 
-      - name: Accept Android SDK licenses and install build tools
+      - name: Install Android SDK components
         shell: bash
         run: |
           set -euo pipefail
@@ -61,6 +61,17 @@ jobs:
           test -x "$SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+          # Bubblewrap's current validator still expects the legacy SDK layout
+          # where the SDK root contains a `tools` directory. GitHub's runner
+          # provides modern `cmdline-tools/latest`, so expose it as `tools`.
+          if [ ! -e "$ANDROID_SDK_ROOT/tools" ]; then
+            ln -s "$ANDROID_SDK_ROOT/cmdline-tools/latest" "$ANDROID_SDK_ROOT/tools"
+          fi
+          test -x "$ANDROID_SDK_ROOT/tools/bin/sdkmanager"
+          test -d "$ANDROID_SDK_ROOT/build-tools/35.0.0"
+          test -d "$ANDROID_SDK_ROOT/platforms/android-35"
+          ls -la "$ANDROID_SDK_ROOT/tools"
 
       - name: Install Bubblewrap
         run: npm install --global @bubblewrap/cli
@@ -70,18 +81,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$HOME/.bubblewrap"
-          python - <<'PY'
-          import json, os
-          from pathlib import Path
-          cfg = {
-              "jdkPath": os.environ["JAVA_HOME"],
-              "androidSdkPath": os.environ["ANDROID_SDK_ROOT"]
-          }
-          path = Path.home() / '.bubblewrap' / 'config.json'
-          path.write_text(json.dumps(cfg, indent=2) + '\n', encoding='utf-8')
-          print(path)
-          print(json.dumps(cfg, indent=2))
-          PY
+          bubblewrap updateConfig \
+            --jdkPath="$JAVA_HOME" \
+            --androidSdkPath="$ANDROID_SDK_ROOT"
+          cat "$HOME/.bubblewrap/config.json"
           bubblewrap doctor
 
       - name: Verify toolchain
@@ -92,7 +95,7 @@ jobs:
           npm --version
           bubblewrap --version
 
-      - name: Create temporary tester signing key before Bubblewrap init
+      - name: Create temporary tester signing key
         shell: bash
         run: |
           set -euo pipefail
@@ -111,33 +114,25 @@ jobs:
           echo "BUILD_KEY_PASSWORD=$PASS" >> "$GITHUB_ENV"
           echo "BUILD_KEY_ALIAS=android" >> "$GITHUB_ENV"
 
-      - name: Initialize Bubblewrap project without prompts
+      - name: Initialize Bubblewrap project
         shell: python
         env:
           MANIFEST_URL: ${{ env.MANIFEST_URL }}
-          APP_START_URL: ${{ env.APP_START_URL }}
-          PACKAGE_ID: ${{ env.PACKAGE_ID }}
         run: |
           import os, subprocess
+          # Bubblewrap init is interactive. These answers are retained only for
+          # the fields that are not reliably inferred from the web manifest.
           answers = [
-              'apps.laxmannepal.com.np',
-              os.environ['APP_START_URL'],
               'Text to Handwriting',
               'Handwriting',
-              os.environ['PACKAGE_ID'],
+              '${{ env.PACKAGE_ID }}',
               '${{ inputs.version_code }}',
               'standalone',
               'portrait',
               '#0284c7',
               '#f1f5f9',
               'https://apps.laxmannepal.com.np/Text-To-Handwriting/icons/icon.svg',
-              '',
-              'y',
-              '',
-              'n',
-              'n',
-              'tester-keystore.jks',
-              'android'
+              '', '', 'n', 'n', 'n'
           ]
           result = subprocess.run(
               ['bubblewrap', 'init', '--manifest', os.environ['MANIFEST_URL'], '--directory', 'android'],
@@ -156,7 +151,8 @@ jobs:
           import json
           from pathlib import Path
           path = Path('android/twa-manifest.json')
-          if not path.exists(): raise SystemExit('twa-manifest.json was not generated')
+          if not path.exists():
+              raise SystemExit('twa-manifest.json was not generated')
           manifest = json.loads(path.read_text(encoding='utf-8'))
           manifest.update({
               'name': 'Text to Handwriting',
@@ -174,6 +170,7 @@ jobs:
         run: bubblewrap update --skipVersionUpgrade --manifest=android/twa-manifest.json
 
       - name: Build tester APK
+        shell: bash
         run: |
           set -euo pipefail
           bubblewrap build --manifest=android/twa-manifest.json
