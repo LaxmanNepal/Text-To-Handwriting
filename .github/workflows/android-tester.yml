@@ -24,7 +24,6 @@ jobs:
   build-apk:
     name: Build tester APK
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -46,24 +45,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "JAVA_HOME=$JAVA_HOME"
-          echo "ANDROID_HOME=${ANDROID_HOME:-}"
-          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-}"
           SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
           test -n "$SDK"
           test -d "$SDK"
           echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
           echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "JAVA_HOME=$JAVA_HOME"
+          echo "ANDROID_SDK_ROOT=$SDK"
 
-      - name: Accept Android SDK licenses
+      - name: Accept Android SDK licenses and install build tools
         shell: bash
         run: |
           set -euo pipefail
-          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
-          "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" \
-            "platform-tools" \
-            "platforms;android-35" \
-            "build-tools;35.0.0"
+          SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Install Bubblewrap
         run: npm install --global @bubblewrap/cli
@@ -78,9 +75,11 @@ jobs:
           from pathlib import Path
           cfg = {
               "jdkPath": os.environ["JAVA_HOME"],
-              "androidSdkPath": os.environ["ANDROID_SDK_ROOT"],
+              "androidSdkPath": os.environ["ANDROID_SDK_ROOT"]
           }
-          Path.home().joinpath('.bubblewrap', 'config.json').write_text(json.dumps(cfg, indent=2) + '\n')
+          path = Path.home() / '.bubblewrap' / 'config.json'
+          path.write_text(json.dumps(cfg, indent=2) + '\n', encoding='utf-8')
+          print(path)
           print(json.dumps(cfg, indent=2))
           PY
           bubblewrap doctor
@@ -93,7 +92,7 @@ jobs:
           npm --version
           bubblewrap --version
 
-      - name: Create temporary tester signing key
+      - name: Create temporary tester signing key before Bubblewrap init
         shell: bash
         run: |
           set -euo pipefail
@@ -112,22 +111,39 @@ jobs:
           echo "BUILD_KEY_PASSWORD=$PASS" >> "$GITHUB_ENV"
           echo "BUILD_KEY_ALIAS=android" >> "$GITHUB_ENV"
 
-      - name: Initialize Bubblewrap project
+      - name: Initialize Bubblewrap project without prompts
         shell: python
         env:
           MANIFEST_URL: ${{ env.MANIFEST_URL }}
+          APP_START_URL: ${{ env.APP_START_URL }}
+          PACKAGE_ID: ${{ env.PACKAGE_ID }}
         run: |
           import os, subprocess
           answers = [
-              '', 'Text to Handwriting', 'Handwriting', os.environ['PACKAGE_ID'],
-              '${{ inputs.version_code }}', 'standalone', 'portrait', '#0284c7', '#ffffff',
+              'apps.laxmannepal.com.np',
+              os.environ['APP_START_URL'],
+              'Text to Handwriting',
+              'Handwriting',
+              os.environ['PACKAGE_ID'],
+              '${{ inputs.version_code }}',
+              'standalone',
+              'portrait',
+              '#0284c7',
+              '#f1f5f9',
               'https://apps.laxmannepal.com.np/Text-To-Handwriting/icons/icon.svg',
-              '', '', 'n', 'n', 'n', 'NP', 'Laxman Nepal', 'Apps', 'Laxman Nepal',
-              os.environ['BUILD_KEYSTORE_PASSWORD'], os.environ['BUILD_KEY_PASSWORD']
+              '',
+              'y',
+              '',
+              'n',
+              'n',
+              'tester-keystore.jks',
+              'android'
           ]
           result = subprocess.run(
               ['bubblewrap', 'init', '--manifest', os.environ['MANIFEST_URL'], '--directory', 'android'],
-              input='\n'.join(answers) + '\n', text=True, capture_output=True
+              input='\n'.join(answers) + '\n',
+              text=True,
+              capture_output=True
           )
           print(result.stdout)
           print(result.stderr)
