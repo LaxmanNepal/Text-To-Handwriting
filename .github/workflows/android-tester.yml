@@ -17,11 +17,8 @@ permissions:
 
 env:
   PACKAGE_ID: np.com.laxmannepal.texttohandwriting
-  APP_URL: https://apps.laxmannepal.com.np/Text-To-Handwriting/
   COMPILE_SDK: '35'
-  TARGET_SDK: '35'
-  MIN_SDK: '23'
-  GRADLE_VERSION: '8.7'
+  BUILD_TOOLS: '35.0.0'
 
 jobs:
   build-apk:
@@ -39,21 +36,25 @@ jobs:
           java-version: '17'
 
       - name: Configure Android SDK
-        shell: bash
         run: |
           set -euo pipefail
           SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
           test -d "$SDK"
+          "$SDK/cmdline-tools/latest/bin/sdkmanager" --install "platform-tools" "platforms;android-${COMPILE_SDK}" "build-tools;${BUILD_TOOLS}"
           echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
-          "$SDK/cmdline-tools/latest/bin/sdkmanager" --install "platform-tools" "platforms;android-${COMPILE_SDK}" "build-tools;35.0.0"
 
-      - name: Validate inputs
+      - name: Validate inputs and project
         shell: bash
         run: |
           set -euo pipefail
           [[ "${{ inputs.version_code }}" =~ ^[1-9][0-9]*$ ]] || { echo 'version_code must be a positive integer'; exit 1; }
           [[ "${{ inputs.version_name }}" =~ ^[0-9A-Za-z][0-9A-Za-z._-]*$ ]] || { echo 'Invalid version_name'; exit 1; }
+          test -f android/settings.gradle
+          test -f android/build.gradle
+          test -f android/app/build.gradle
+          test -f android/app/src/main/AndroidManifest.xml
+          test -f android/app/src/main/java/np/com/laxmannepal/texttohandwriting/MainActivity.java
 
       - name: Prepare permanent signing key
         shell: bash
@@ -68,111 +69,25 @@ jobs:
           : "${KEYSTORE_PASSWORD:?Missing ANDROID_KEYSTORE_PASSWORD}"
           : "${KEY_ALIAS:?Missing ANDROID_KEY_ALIAS}"
           : "${KEY_PASSWORD:?Missing ANDROID_KEY_PASSWORD}"
-          mkdir -p android-release
-          printf '%s' "$KEYSTORE_B64" | base64 --decode > android-release/release.keystore
-          keytool -list -keystore android-release/release.keystore -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
-          echo "RELEASE_KEYSTORE=$GITHUB_WORKSPACE/android-release/release.keystore" >> "$GITHUB_ENV"
+          mkdir -p android/keystore dist
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > android/keystore/release.keystore
+          keytool -list -keystore android/keystore/release.keystore -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
+          echo "RELEASE_KEYSTORE=$GITHUB_WORKSPACE/android/keystore/release.keystore" >> "$GITHUB_ENV"
           echo "RELEASE_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
           echo "RELEASE_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
           echo "RELEASE_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
 
-      - name: Generate native Android project
-        shell: bash
-        run: |
-          set -euo pipefail
-          ROOT="$GITHUB_WORKSPACE/android-release"
-          PKG_PATH="${PACKAGE_ID//./\/}"
-          mkdir -p "$ROOT/app/src/main/java/$PKG_PATH" "$ROOT/app/src/main/res/values" "$ROOT/app/src/main/res/drawable"
-          cat > "$ROOT/settings.gradle" <<'EOF'
-pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
-dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
-rootProject.name='TextToHandwriting'
-include ':app'
-EOF
-          cat > "$ROOT/build.gradle" <<'EOF'
-plugins { id 'com.android.application' version '8.6.1' apply false }
-EOF
-          cat > "$ROOT/gradle.properties" <<'EOF'
-org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
-android.useAndroidX=true
-android.nonTransitiveRClass=true
-EOF
-          cat > "$ROOT/app/build.gradle" <<'EOF'
-plugins { id 'com.android.application' }
-android {
-    namespace 'np.com.laxmannepal.texttohandwriting'
-    compileSdk 35
-    defaultConfig {
-        applicationId 'np.com.laxmannepal.texttohandwriting'
-        minSdk 23
-        targetSdk 35
-        versionCode Integer.parseInt(System.getenv('VERSION_CODE'))
-        versionName System.getenv('VERSION_NAME')
-    }
-    signingConfigs {
-        release {
-            storeFile file(System.getenv('RELEASE_KEYSTORE'))
-            storePassword System.getenv('RELEASE_KEYSTORE_PASSWORD')
-            keyAlias System.getenv('RELEASE_KEY_ALIAS')
-            keyPassword System.getenv('RELEASE_KEY_PASSWORD')
-        }
-    }
-    buildTypes { release { minifyEnabled false; shrinkResources false; signingConfig signingConfigs.release } }
-}
-EOF
-          cat > "$ROOT/app/src/main/res/values/strings.xml" <<'EOF'
-<resources><string name="app_name">Text to Handwriting</string></resources>
-EOF
-          cat > "$ROOT/app/src/main/res/values/colors.xml" <<'EOF'
-<resources><color name="app_primary">#0284C7</color></resources>
-EOF
-          cat > "$ROOT/app/src/main/res/values/themes.xml" <<'EOF'
-<resources><style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar"><item name="android:colorAccent">@color/app_primary</item><item name="android:statusBarColor">#0284C7</item><item name="android:navigationBarColor">#000000</item></style></resources>
-EOF
-          cat > "$ROOT/app/src/main/res/drawable/ic_launcher.xml" <<'EOF'
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108"><path android:fillColor="#0284C7" android:pathData="M0,0h108v108h-108z"/><path android:fillColor="#FFFFFF" android:pathData="M25,27h58v8h-58zM25,46h58v8h-58zM25,65h40v8h-40z"/></vector>
-EOF
-          cat > "$ROOT/app/src/main/AndroidManifest.xml" <<'EOF'
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
- <uses-permission android:name="android.permission.INTERNET" />
- <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
- <application android:allowBackup="false" android:label="@string/app_name" android:theme="@style/AppTheme" android:usesCleartextTraffic="false" android:icon="@drawable/ic_launcher" android:roundIcon="@drawable/ic_launcher">
-  <activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
- </application>
-</manifest>
-EOF
-          cat > "$ROOT/app/src/main/java/$PKG_PATH/MainActivity.java" <<'EOF'
-package np.com.laxmannepal.texttohandwriting;
-import android.app.Activity;
-import android.content.Intent;
-import android.net.Uri;
-import android.os.Bundle;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
-public final class MainActivity extends Activity {
- private WebView webView;
- @Override public void onCreate(Bundle state) { super.onCreate(state); webView=new WebView(this); setContentView(webView); webView.setWebViewClient(new WebViewClient(){ @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request){ Uri u=request.getUrl(); if("https".equals(u.getScheme()) && "apps.laxmannepal.com.np".equals(u.getHost())) return false; try{startActivity(new Intent(Intent.ACTION_VIEW,u));}catch(Exception ignored){} return true; }}); webView.getSettings().setJavaScriptEnabled(true); webView.getSettings().setDomStorageEnabled(true); webView.getSettings().setAllowFileAccess(false); webView.getSettings().setAllowContentAccess(false); webView.loadUrl("https://apps.laxmannepal.com.np/Text-To-Handwriting/?source=android"); }
- @Override public void onBackPressed(){ if(webView!=null && webView.canGoBack()) webView.goBack(); else super.onBackPressed(); }
- @Override protected void onDestroy(){ if(webView!=null){webView.stopLoading();webView.destroy();webView=null;} super.onDestroy(); }
-}
-EOF
-          cd "$ROOT"
-          gradle wrapper --gradle-version "$GRADLE_VERSION" --distribution-type bin
-
-      - name: Build signed APK
-        shell: bash
+      - name: Build release APK
         env:
           VERSION_NAME: ${{ inputs.version_name }}
           VERSION_CODE: ${{ inputs.version_code }}
         run: |
           set -euo pipefail
-          cd android-release
-          ./gradlew --no-daemon clean assembleRelease
-          mkdir -p ../dist
+          cd android
+          gradle --no-daemon --stacktrace clean assembleRelease
           cp app/build/outputs/apk/release/app-release.apk "../dist/Text-To-Handwriting-${VERSION_NAME}-${VERSION_CODE}.apk"
 
-      - name: Verify and fingerprint APK
+      - name: Verify APK and generate fingerprints
         shell: bash
         run: |
           set -euo pipefail
@@ -181,6 +96,21 @@ EOF
           apksigner verify --verbose --print-certs "$APK"
           sha256sum "$APK" | tee dist/SHA256SUM.txt
           keytool -list -v -keystore "$RELEASE_KEYSTORE" -storepass "$RELEASE_KEYSTORE_PASSWORD" -alias "$RELEASE_KEY_ALIAS" | grep 'SHA256:' | tee dist/SHA256-CERTIFICATE.txt
+
+      - name: Write build summary
+        shell: bash
+        run: |
+          {
+            echo '## Android APK ready'
+            echo
+            echo "- App: Text to Handwriting"
+            echo "- Package: $PACKAGE_ID"
+            echo "- Version: ${{ inputs.version_name }} (${{ inputs.version_code }})"
+            echo "- Commit: $GITHUB_SHA"
+            echo "- APK: Text-To-Handwriting-${{ inputs.version_name }}-${{ inputs.version_code }}.apk"
+            echo '- Signed: yes'
+            echo '- Verification: passed'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload ready-to-install APK
         uses: actions/upload-artifact@v4
