@@ -1,4 +1,4 @@
-const CACHE = 'tth-pwa-v9';
+const CACHE = 'tth-pwa-v10';
 const APP_SCOPE = '/Text-To-Handwriting/';
 const APP_SHELL = [
   `${APP_SCOPE}`,
@@ -7,7 +7,6 @@ const APP_SHELL = [
   `${APP_SCOPE}mobile-responsive.css`,
   `${APP_SCOPE}studio-v2.js`,
   `${APP_SCOPE}pwa.js`,
-  `${APP_SCOPE}offline.js`,
   `${APP_SCOPE}offline-storage.js`,
   `${APP_SCOPE}documents.js`,
   `${APP_SCOPE}page-history.js`,
@@ -26,15 +25,14 @@ self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
       .then(keys => Promise.all(
-        keys.filter(key => key.startsWith('tth-pwa-') && key !== CACHE)
-          .map(key => caches.delete(key))
+        keys.filter(key => key.startsWith('tth-pwa-') && key !== CACHE).map(key => caches.delete(key))
       ))
       .then(() => self.clients.claim())
   );
 });
 
 async function cacheResponse(request, response) {
-  if (response && response.ok && response.type === 'basic') {
+  if (response?.ok && response.type === 'basic') {
     const cache = await caches.open(CACHE);
     await cache.put(request, response.clone());
   }
@@ -43,7 +41,6 @@ async function cacheResponse(request, response) {
 
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
-
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin || !url.pathname.startsWith(APP_SCOPE)) return;
 
