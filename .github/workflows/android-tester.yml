@@ -196,12 +196,11 @@ jobs:
 
       - name: Build tester APK
         shell: bash
-        env:
-          BUBBLEWRAP_KEYSTORE_PASSWORD: ${{ env.BUILD_KEYSTORE_PASSWORD }}
-          BUBBLEWRAP_KEY_PASSWORD: ${{ env.BUILD_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          bubblewrap build --manifest=android/twa-manifest.json --signingKeyPath="$GITHUB_WORKSPACE/android/tester-keystore.jks" --signingKeyAlias="$BUILD_KEY_ALIAS"
+          bubblewrap build --manifest=android/twa-manifest.json \
+            --signingKeyPath="$GITHUB_WORKSPACE/android/tester-keystore.jks" \
+            --signingKeyAlias="$BUILD_KEY_ALIAS"
           test -s android/app-release-signed.apk
           mkdir -p dist
           cp android/app-release-signed.apk "dist/Text-To-Handwriting-${{ inputs.version_name }}-tester.apk"
