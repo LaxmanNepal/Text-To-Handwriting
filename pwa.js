@@ -104,7 +104,6 @@
         return;
       }
 
-      // One-time compatibility migration for old localStorage drafts.
       for (const key of LEGACY_DRAFT_KEYS) {
         const raw = localStorage.getItem(key);
         if (!raw) continue;
@@ -164,8 +163,10 @@
       await loadScript(`${APP_SCOPE}offline-storage.js`);
       await loadScript(`${APP_SCOPE}documents.js`);
       await loadScript(`${APP_SCOPE}studio-v2.js?v=5`);
+      await loadScript(`${APP_SCOPE}handwriting-engine.js?v=1`);
       await loadScript(`${APP_SCOPE}page-history.js?v=3`);
       await restoreDraft();
+      window.TTHHandwritingEngine?.refresh();
     } catch (error) {
       console.error('[TTH] local module bootstrap failed:', error);
       toast('Some app features could not be loaded. Please refresh.');
@@ -176,6 +177,7 @@
     e?.addEventListener('input', () => {
       clearTimeout(saveTimer);
       saveTimer = setTimeout(() => { void saveDraft(); }, 500);
+      window.TTHHandwritingEngine?.refresh();
     });
     window.addEventListener('pagehide', () => { void saveDraft(); });
     setTimeout(createInstallButton, 1200);
