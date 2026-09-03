@@ -7,6 +7,14 @@
   const STYLE_ID = 'tth-handwriting-engine-css';
   const ROOT_CLASS = 'tth-handwriting-rendered';
   const SETTINGS_KEY = 'tth-studio-v3-settings';
+  const PROFILES = {
+    neat: { name: 'Neat Student', realism: 28, rotation: 1.2, spacing: 0 },
+    fast: { name: 'Fast Writing', realism: 72, rotation: 3.8, spacing: -0.25 },
+    exam: { name: 'Exam Writing', realism: 48, rotation: 2, spacing: 0.05 },
+    casual: { name: 'Casual Notes', realism: 62, rotation: 3, spacing: 0.15 },
+    messy: { name: 'Messy Writing', realism: 92, rotation: 5.2, spacing: -0.45 },
+    signature: { name: 'Signature Style', realism: 78, rotation: 4.4, spacing: -0.35 }
+  };
   let enabled = true, observer = null, raf = 0;
 
   const clamp = (n,a,b) => Math.min(b,Math.max(a,n));
@@ -30,7 +38,9 @@
   const getSettings=()=>{
     let stored={}; try{stored=JSON.parse(localStorage.getItem(SETTINGS_KEY)||'{}')||{}}catch(_){}
     const source=Object.assign({},stored,window.TTHHandwritingSettings||{});
-    return {realism:clamp(Number(source.realism??35),0,100),rotation:clamp(Number(source.rotation??2),0,6),opacity:clamp(Number(source.opacity??92),50,100),spacing:Number(source.spacing??0),seed:Number(source.seed??1),content:document.querySelector('.paper-content')};
+    const profileKey = source.profile || 'casual';
+    const profile = PROFILES[profileKey] || PROFILES.casual;
+    return {profile:profileKey,realism:clamp(Number(source.realism??profile.realism),0,100),rotation:clamp(Number(source.rotation??profile.rotation),0,6),opacity:clamp(Number(source.opacity??92),50,100),spacing:Number(source.spacing??profile.spacing),seed:Number(source.seed??1),content:document.querySelector('.paper-content')};
   };
 
   const skip=el=>!el||el.closest?.('img,button,input,textarea,select,script,style,.tth-glyph,.tth-space');
