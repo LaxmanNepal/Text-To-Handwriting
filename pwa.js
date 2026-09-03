@@ -100,7 +100,6 @@
       const current = existing[0];
       if (current?.html && e.textContent.trim().length < 5) {
         e.innerHTML = current.html;
-        e.dispatchEvent(new Event('input', { bubbles: true }));
         return;
       }
 
@@ -117,7 +116,6 @@
             settings: current?.settings || {}
           });
           e.innerHTML = legacy.html;
-          e.dispatchEvent(new Event('input', { bubbles: true }));
           localStorage.removeItem(key);
           toast('Your previous draft was restored.');
         }
@@ -163,7 +161,7 @@
       await loadScript(`${APP_SCOPE}offline-storage.js`);
       await loadScript(`${APP_SCOPE}documents.js`);
       await loadScript(`${APP_SCOPE}studio-v2.js?v=5`);
-      await loadScript(`${APP_SCOPE}handwriting-engine.js?v=1`);
+      await loadScript(`${APP_SCOPE}handwriting-engine.js?v=2`);
       await loadScript(`${APP_SCOPE}page-history.js?v=3`);
       await restoreDraft();
       window.TTHHandwritingEngine?.refresh();
@@ -177,7 +175,6 @@
     e?.addEventListener('input', () => {
       clearTimeout(saveTimer);
       saveTimer = setTimeout(() => { void saveDraft(); }, 500);
-      window.TTHHandwritingEngine?.refresh();
     });
     window.addEventListener('pagehide', () => { void saveDraft(); });
     setTimeout(createInstallButton, 1200);
