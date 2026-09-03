@@ -3,7 +3,7 @@
 
   const APP_SCOPE = '/Text-To-Handwriting/';
   const SW_URL = `${APP_SCOPE}sw.js`;
-  const DRAFT_KEY = 'tth-draft-v3';
+  const LEGACY_DRAFT_KEYS = ['tth-draft-v3', 'tth-draft-v2'];
   let deferredPrompt = null;
 
   const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
@@ -72,29 +72,57 @@
     };
   };
 
-  const saveDraft = () => {
+  const saveDraft = async () => {
     const e = editor();
-    if (!e) return;
+    if (!e || !window.TTHDocs) return;
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ html: e.innerHTML, savedAt: Date.now() }));
-      if (window.TTHStorage?.put) {
-        window.TTHStorage.put({ id: 'default', title: 'Untitled handwriting', text: e.textContent || '', html: e.innerHTML })
-          .catch(error => console.warn('[TTH] autosave failed:', error));
-      }
+      const docs = window.TTHDocs;
+      const existing = await docs.list();
+      const current = existing[0];
+      await docs.save({
+        id: current?.id || 'default',
+        title: current?.title || 'Untitled handwriting',
+        text: e.innerText || '',
+        html: e.innerHTML || '',
+        settings: current?.settings || {}
+      });
     } catch (error) {
-      console.warn('[TTH] draft save failed:', error);
+      console.warn('[TTH] IndexedDB autosave failed:', error);
     }
   };
 
-  const restoreDraft = () => {
+  const restoreDraft = async () => {
     const e = editor();
-    if (!e) return;
+    if (!e || !window.TTHDocs) return;
     try {
-      const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
-      if (d?.html && e.textContent.trim().length < 5) {
-        e.innerHTML = d.html;
+      const docs = window.TTHDocs;
+      const existing = await docs.list();
+      const current = existing[0];
+      if (current?.html && e.textContent.trim().length < 5) {
+        e.innerHTML = current.html;
         e.dispatchEvent(new Event('input', { bubbles: true }));
-        toast('Your previous draft was restored.');
+        return;
+      }
+
+      // One-time compatibility migration for old localStorage drafts.
+      for (const key of LEGACY_DRAFT_KEYS) {
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        const legacy = JSON.parse(raw);
+        if (legacy?.html && e.textContent.trim().length < 5) {
+          await docs.save({
+            id: current?.id || 'default',
+            title: current?.title || 'Untitled handwriting',
+            text: legacy.text || e.textContent || '',
+            html: legacy.html,
+            settings: current?.settings || {}
+          });
+          e.innerHTML = legacy.html;
+          e.dispatchEvent(new Event('input', { bubbles: true }));
+          localStorage.removeItem(key);
+          toast('Your previous draft was restored.');
+        }
+        break;
       }
     } catch (error) {
       console.warn('[TTH] draft restore failed:', error);
@@ -135,21 +163,21 @@
     try {
       await loadScript(`${APP_SCOPE}offline-storage.js`);
       await loadScript(`${APP_SCOPE}documents.js`);
-      await loadScript(`${APP_SCOPE}studio-v2.js?v=4`);
-      await loadScript(`${APP_SCOPE}page-history.js?v=2`);
+      await loadScript(`${APP_SCOPE}studio-v2.js?v=5`);
+      await loadScript(`${APP_SCOPE}page-history.js?v=3`);
+      await restoreDraft();
     } catch (error) {
       console.error('[TTH] local module bootstrap failed:', error);
       toast('Some app features could not be loaded. Please refresh.');
     }
 
-    restoreDraft();
     const e = editor();
     let saveTimer;
     e?.addEventListener('input', () => {
       clearTimeout(saveTimer);
-      saveTimer = setTimeout(saveDraft, 500);
+      saveTimer = setTimeout(() => { void saveDraft(); }, 500);
     });
-    window.addEventListener('pagehide', saveDraft);
+    window.addEventListener('pagehide', () => { void saveDraft(); });
     setTimeout(createInstallButton, 1200);
   });
 
