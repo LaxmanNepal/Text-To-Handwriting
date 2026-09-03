@@ -5,7 +5,8 @@
   // UI preferences remain in localStorage because they are device preferences,
   // not document/project data.
   const SETTINGS_KEY = 'tth-studio-v3-settings';
-  const defaults = { paper: 'scanner', pen: 'blue', realism: 35, rotation: 2, opacity: 92, spacing: 0, lineHeight: 32 };
+  const defaults = { paper: 'scanner', pen: 'blue', profile: 'casual', realism: 35, rotation: 2, opacity: 92, spacing: 0, lineHeight: 32 };
+  const profiles = { neat: 'Neat Student', fast: 'Fast Writing', exam: 'Exam Writing', casual: 'Casual Notes', messy: 'Messy Writing', signature: 'Signature Style' };
   const papers = {
     scanner: { name: 'Scanner Effect', bg: '#f8f8f5', line: '#cbd5e1' },
     ruled: { name: 'Ruled Notebook', bg: '#fff', line: '#cbd5e1' },
@@ -130,7 +131,7 @@
     if (panel) panel.remove();
     panel = document.createElement('aside');
     panel.className = 'studio-v2';
-    panel.innerHTML = `<button class="studio-close" aria-label="Close Handwriting Studio">×</button><h3>Handwriting Studio</h3><div class="studio-saved">Preferences are saved on this device. Documents use IndexedDB.</div><div class="studio-row"><label>Paper</label><div class="studio-grid">${Object.entries(papers).map(([key, value]) => `<button data-paper="${key}" class="${state.paper === key ? 'active' : ''}">${value.name}</button>`).join('')}</div></div><div class="studio-row"><label>Pen <span>${(pens[state.pen] || pens.blue).name}</span></label><div class="studio-grid">${Object.entries(pens).map(([key, value]) => `<button data-pen="${key}" class="${state.pen === key ? 'active' : ''}">${value.name}</button>`).join('')}</div></div><div class="studio-row"><label>Realism <output>${state.realism}</output></label><input data-range="realism" type="range" min="0" max="100" value="${state.realism}"></div><div class="studio-row"><label>Character rotation <output>${state.rotation}°</output></label><input data-range="rotation" type="range" min="0" max="6" value="${state.rotation}"></div><div class="studio-row"><label>Ink opacity <output>${state.opacity}%</output></label><input data-range="opacity" type="range" min="50" max="100" value="${state.opacity}"></div><div class="studio-row"><label>Letter spacing <output>${state.spacing}px</output></label><input data-range="spacing" type="range" min="-1" max="4" step=".5" value="${state.spacing}"></div><div class="studio-row"><label>Line height <output>${state.lineHeight}px</output></label><input data-range="lineHeight" type="range" min="24" max="48" value="${state.lineHeight}"></div><div class="studio-actions"><button id="studio-new">New Draft</button><button id="studio-save" class="primary">Save Project</button></div>`;
+    panel.innerHTML = `<button class="studio-close" aria-label="Close Handwriting Studio">×</button><h3>Handwriting Studio</h3><div class="studio-saved">Preferences are saved on this device. Documents use IndexedDB.</div><div class="studio-row"><label>Paper</label><div class="studio-grid">${Object.entries(papers).map(([key, value]) => `<button data-paper="${key}" class="${state.paper === key ? 'active' : ''}">${value.name}</button>`).join('')}</div></div><div class="studio-row"><label>Writing Style</label><div class="studio-grid">${Object.entries(profiles).map(([key,name]) => `<button data-profile="${key}" class="${state.profile === key ? 'active' : ''}">${name}</button>`).join('')}</div></div><div class="studio-row"><label>Pen <span>${(pens[state.pen] || pens.blue).name}</span></label><div class="studio-grid">${Object.entries(pens).map(([key, value]) => `<button data-pen="${key}" class="${state.pen === key ? 'active' : ''}">${value.name}</button>`).join('')}</div></div><div class="studio-row"><label>Realism <output>${state.realism}</output></label><input data-range="realism" type="range" min="0" max="100" value="${state.realism}"></div><div class="studio-row"><label>Character rotation <output>${state.rotation}°</output></label><input data-range="rotation" type="range" min="0" max="6" value="${state.rotation}"></div><div class="studio-row"><label>Ink opacity <output>${state.opacity}%</output></label><input data-range="opacity" type="range" min="50" max="100" value="${state.opacity}"></div><div class="studio-row"><label>Letter spacing <output>${state.spacing}px</output></label><input data-range="spacing" type="range" min="-1" max="4" step=".5" value="${state.spacing}"></div><div class="studio-row"><label>Line height <output>${state.lineHeight}px</output></label><input data-range="lineHeight" type="range" min="24" max="48" value="${state.lineHeight}"></div><div class="studio-actions"><button id="studio-new">New Draft</button><button id="studio-save" class="primary">Save Project</button></div>`;
     document.body.appendChild(panel);
 
     panel.querySelector('.studio-close').onclick = () => panel.remove();
@@ -139,6 +140,7 @@
       apply();
       render();
     });
+    panel.querySelectorAll('[data-profile]').forEach(button => button.onclick = () => { state.profile = button.dataset.profile; window.TTHHandwritingEngine?.setProfile?.(state.profile); saveSettings(); render(); });
     panel.querySelectorAll('[data-pen]').forEach(button => button.onclick = () => {
       state.pen = button.dataset.pen;
       apply();
