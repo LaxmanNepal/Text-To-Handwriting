@@ -2,18 +2,17 @@
   'use strict';
 
   // Phase 2: procedural handwriting variation.
-  // This keeps the selected handwriting font but varies each character's
-  // transform/opacity/spacing so repeated glyphs do not look mechanically identical.
+  // The selected handwriting font remains intact, while individual glyphs get
+  // deterministic micro-variation in rotation, vertical position, scale and ink.
   const STYLE_ID = 'tth-handwriting-engine-css';
   const ROOT_CLASS = 'tth-handwriting-rendered';
+  const SETTINGS_KEY = 'tth-studio-v3-settings';
   let enabled = true;
   let observer = null;
   let raf = 0;
 
   const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
 
-  // Stable pseudo-random value: the same text/settings produce the same page
-  // until the user changes the variation seed.
   const hash = (text) => {
     let h = 2166136261;
     for (let i = 0; i < text.length; i++) {
@@ -40,34 +39,34 @@
         will-change: transform, opacity;
         white-space: pre;
       }
-      .${ROOT_CLASS} .tth-space { display: inline; }
-      .${ROOT_CLASS} .tth-line-break { display:block; height:0; }
+      .${ROOT_CLASS} .tth-space { white-space: pre; }
     `;
     document.head.appendChild(style);
   };
 
   const getSettings = () => {
+    let stored = {};
+    try { stored = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (_) {}
+    const source = Object.assign({}, stored, window.TTHHandwritingSettings || {});
     const content = document.querySelector('.paper-content');
     return {
-      realism: clamp(Number(window.TTHHandwritingSettings?.realism ?? 35), 0, 100),
-      rotation: clamp(Number(window.TTHHandwritingSettings?.rotation ?? 2), 0, 6),
-      opacity: clamp(Number(window.TTHHandwritingSettings?.opacity ?? 92), 50, 100),
-      spacing: Number(window.TTHHandwritingSettings?.spacing ?? 0),
-      seed: Number(window.TTHHandwritingSettings?.seed ?? 1),
+      realism: clamp(Number(source.realism ?? 35), 0, 100),
+      rotation: clamp(Number(source.rotation ?? 2), 0, 6),
+      opacity: clamp(Number(source.opacity ?? 92), 50, 100),
+      spacing: Number(source.spacing ?? 0),
+      seed: Number(source.seed ?? 1),
       content
     };
   };
 
-  const shouldSkip = (node) => {
-    if (!node) return true;
-    if (node.nodeType === Node.TEXT_NODE) return false;
-    return node.nodeType !== Node.ELEMENT_NODE ||
-      node.closest?.('img,button,input,textarea,select,script,style,.tth-glyph');
+  const shouldSkip = (element) => {
+    if (!element) return true;
+    return element.closest?.('img,button,input,textarea,select,script,style,.tth-glyph,.tth-space');
   };
 
   const wrapTextNode = (node, settings, path) => {
     const text = node.nodeValue || '';
-    if (!text.trim() && !text.includes('\n')) return;
+    if (!text) return;
     const fragment = document.createDocumentFragment();
     let position = 0;
     for (const char of text) {
@@ -95,8 +94,8 @@
       const angle = (r1 - 0.5) * settings.rotation * amount * 2;
       const y = (r2 - 0.5) * 1.8 * amount;
       const scale = 1 + (r3 - 0.5) * 0.035 * amount;
-      const alphaJitter = (r1 - 0.5) * 0.10 * amount;
-      const opacity = clamp(settings.opacity / 100 + alphaJitter, 0.35, 1);
+      const inkJitter = (r1 - 0.5) * 0.10 * amount;
+      const opacity = clamp(settings.opacity / 100 + inkJitter, 0.35, 1);
       const spacing = settings.spacing + (r2 - 0.5) * 0.45 * amount;
       span.style.transform = `translateY(${y.toFixed(2)}px) rotate(${angle.toFixed(2)}deg) scale(${scale.toFixed(4)})`;
       span.style.opacity = opacity.toFixed(3);
@@ -112,8 +111,7 @@
     raf = requestAnimationFrame(() => {
       const settings = getSettings();
       const content = settings.content;
-      if (!enabled || !content) return;
-      if (content.dataset.tthRendering === '1') return;
+      if (!enabled || !content || content.dataset.tthRendering === '1') return;
       content.dataset.tthRendering = '1';
       ensureStyle();
       content.classList.add(ROOT_CLASS);
@@ -121,7 +119,7 @@
       const nodes = [];
       let node;
       while ((node = walker.nextNode())) {
-        if (!node.parentElement?.closest('.tth-glyph') && !shouldSkip(node.parentElement)) nodes.push(node);
+        if (!shouldSkip(node.parentElement)) nodes.push(node);
       }
       nodes.forEach((textNode, index) => wrapTextNode(textNode, settings, index));
       delete content.dataset.tthRendering;
@@ -133,10 +131,6 @@
     if (!content) return;
     content.querySelectorAll('.tth-glyph, .tth-space').forEach(span => {
       span.replaceWith(document.createTextNode(span.textContent || ''));
-    });
-    content.querySelectorAll('br').forEach(br => {
-      // Preserve explicit line breaks while allowing a future render.
-      br.dataset.tthBreak = '1';
     });
     content.normalize();
     content.classList.remove(ROOT_CLASS);
@@ -169,6 +163,13 @@
       if (mutations.some(m => m.type === 'childList' || m.type === 'characterData')) render();
     });
     observer.observe(content, { childList: true, subtree: true, characterData: true });
+
+    // Studio sliders change localStorage in the same tab, so listen for the
+    // input event rather than relying on the window storage event.
+    document.addEventListener('input', event => {
+      if (event.target?.matches?.('[data-range]')) refresh();
+    }, true);
+
     render();
   };
 
