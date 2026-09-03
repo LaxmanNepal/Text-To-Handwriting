@@ -1,9 +1,9 @@
-const CACHE = 'tth-pwa-v13';
+const CACHE = 'tth-pwa-v14';
 const APP_SCOPE = '/Text-To-Handwriting/';
 const APP_SHELL = [
   `${APP_SCOPE}`,`${APP_SCOPE}index.html`,`${APP_SCOPE}manifest.webmanifest`,
   `${APP_SCOPE}mobile-responsive.css`,`${APP_SCOPE}studio-v2.js`,
-  `${APP_SCOPE}handwriting-engine.js`,`${APP_SCOPE}pagination.js`,`${APP_SCOPE}pwa.js`,
+  `${APP_SCOPE}handwriting-engine.js`,`${APP_SCOPE}pagination.js`,`${APP_SCOPE}export-engine.js`,`${APP_SCOPE}pwa.js`,
   `${APP_SCOPE}offline-storage.js`,`${APP_SCOPE}documents.js`,`${APP_SCOPE}page-history.js`,`${APP_SCOPE}icons/icon.svg`
 ];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(c=>c.addAll(APP_SHELL)).then(()=>self.skipWaiting())));
