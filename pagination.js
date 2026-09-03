@@ -29,13 +29,10 @@
       .tth-preview-pages { display:flex; flex-direction:column; align-items:center; gap:18px; }
       .tth-preview-page { position:relative; width:var(--tth-page-width); height:var(--tth-page-height); max-width:100%; box-sizing:border-box; overflow:hidden; background:#fff; box-shadow:0 10px 25px -5px rgba(0,0,0,.12); padding:var(--tth-pagination-margin); }
       .tth-preview-content { width:100%; height:100%; box-sizing:border-box; overflow:hidden; white-space:pre-wrap; word-wrap:break-word; }
-      .tth-preview-content .paper-content { min-height:0 !important; padding:0 !important; width:100%; }
       .tth-preview-page .tth-page-number { bottom:5mm; }
-      .tth-pagination-control { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:8px; }
-      .tth-pagination-control select,.tth-pagination-control button { border:1px solid #cbd5e1; border-radius:10px; padding:7px 10px; background:#fff; color:#334155; font:600 12px system-ui,sans-serif; }
       @media (max-width:639px){ .tth-preview-page{ width:min(var(--tth-page-width),100%); height:auto; aspect-ratio:210/297; } }
       @media print {
-        .tth-preview-toolbar,.tth-pagination-control,#paper-wrapper { display:none !important; }
+        .tth-preview-toolbar,#paper-wrapper { display:none !important; }
         #tth-pagination-preview.is-visible { display:block !important; }
         .tth-preview-pages { gap:0; }
         .tth-preview-page { max-width:none; box-shadow:none; break-after:page; page-break-after:always; }
@@ -51,10 +48,7 @@
     const host = document.createElement('section');
     host.id = 'tth-pagination-preview';
     host.setAttribute('aria-label', 'Multi-page preview');
-    host.innerHTML = `
-      <div class="tth-preview-toolbar"><span><i class="fa-solid fa-file-lines"></i> Multi-page preview</span><span id="tth-page-count">1 page</span></div>
-      <div class="tth-preview-pages" id="tth-preview-pages"></div>
-    `;
+    host.innerHTML = '<div class="tth-preview-toolbar"><span><i class="fa-solid fa-file-lines"></i> Multi-page preview</span><span id="tth-page-count">1 page</span></div><div class="tth-preview-pages" id="tth-preview-pages"></div>';
     paperWrapper.parentNode.insertBefore(host, paperWrapper.nextSibling);
   };
 
@@ -65,96 +59,97 @@
     document.documentElement.style.setProperty('--tth-pagination-margin', `${Math.max(8, Number(settings.margin) || 18)}mm`);
   };
 
-  const textLength = node => node.nodeType === Node.TEXT_NODE ? node.textContent.length : Array.from(node.childNodes || []).reduce((n, c) => n + textLength(c), 0);
-
-  const hasMeaningfulContent = node => {
-    if (node.nodeType === Node.TEXT_NODE) return node.textContent.length > 0;
-    if (node.nodeType !== Node.ELEMENT_NODE) return false;
-    return node.tagName === 'BR' || !!node.textContent.trim() || !!node.querySelector('img,canvas,br');
-  };
-
-  // Split a DOM subtree at natural text boundaries. The handwriting engine produces
-  // character spans, so most splits happen cleanly between glyphs without changing style.
-  const appendWithSplit = (source, page, pages, capacity) => {
-    if (!hasMeaningfulContent(source)) return page;
-    const candidate = source.cloneNode(true);
-    page.content.appendChild(candidate);
-    if (page.content.scrollHeight <= capacity) return page;
-    page.content.removeChild(candidate);
-
-    if (source.nodeType === Node.TEXT_NODE) {
-      const value = source.textContent || '';
-      if (!value) return page;
-      let lo = 1, hi = value.length, best = 0;
-      while (lo <= hi) {
-        const mid = (lo + hi) >> 1;
-        const part = document.createTextNode(value.slice(0, mid));
-        page.content.appendChild(part);
-        if (page.content.scrollHeight <= capacity) { best = mid; page.content.removeChild(part); lo = mid + 1; }
-        else { page.content.removeChild(part); hi = mid - 1; }
-      }
-      if (best === 0) {
-        const next = createPage(pages.length + 1);
-        pages.push(next);
-        return appendWithSplit(source, next, pages, capacity);
-      }
-      page.content.appendChild(document.createTextNode(value.slice(0, best)));
-      const rest = document.createTextNode(value.slice(best));
-      const next = createPage(pages.length + 1);
-      pages.push(next);
-      return appendWithSplit(rest, next, pages, capacity);
-    }
-
-    if (source.nodeType === Node.ELEMENT_NODE) {
-      const wrapper = source.cloneNode(false);
-      page.content.appendChild(wrapper);
-      if (page.content.scrollHeight > capacity) {
-        page.content.removeChild(wrapper);
-        const next = createPage(pages.length + 1);
-        pages.push(next);
-        return appendWithSplit(source, next, pages, capacity);
-      }
-      for (const child of Array.from(source.childNodes)) {
-        const holder = { content: wrapper };
-        const before = wrapper.childNodes.length;
-        const tempPages = [page];
-        appendWithSplit(child, holder, tempPages, capacity);
-        if (wrapper.childNodes.length === before && child.textContent) {
-          // Fallback for unusual nested content that could not be split.
-          wrapper.appendChild(child.cloneNode(true));
-        }
-      }
-      return page;
-    }
-    return page;
-  };
-
-  const createPage = number => {
+  const createPage = (number, source) => {
     const page = document.createElement('div');
     page.className = 'tth-preview-page';
     page.dataset.page = String(number);
     const content = document.createElement('div');
     content.className = 'tth-preview-content';
+    if (source) {
+      const cs = getComputedStyle(source);
+      ['fontFamily','fontSize','fontWeight','fontStyle','color','lineHeight','letterSpacing','wordSpacing','textAlign'].forEach(k => content.style[k] = cs[k]);
+    }
     page.appendChild(content);
     return { el: page, content };
   };
 
+  const fits = (content, node) => {
+    content.appendChild(node);
+    const ok = content.scrollHeight <= content.clientHeight + 1;
+    if (!ok) content.removeChild(node);
+    return ok;
+  };
+
+  const splitTextElement = (source, page, pages, sourceEditor) => {
+    const value = source.textContent || '';
+    if (!value) return page;
+    let start = 0;
+    while (start < value.length) {
+      let lo = start + 1, hi = value.length, best = start;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        const probe = source.cloneNode(false);
+        probe.textContent = value.slice(start, mid);
+        if (fits(page.content, probe)) { best = mid; lo = mid + 1; }
+        else hi = mid - 1;
+      }
+      if (best === start) {
+        page = createPage(pages.length + 1, sourceEditor);
+        pages.push(page);
+        document.getElementById('tth-preview-pages').appendChild(page.el);
+        const one = source.cloneNode(false);
+        one.textContent = value.slice(start, start + 1);
+        page.content.appendChild(one);
+        start += 1;
+      } else {
+        const chunk = source.cloneNode(false);
+        chunk.textContent = value.slice(start, best);
+        page.content.appendChild(chunk);
+        start = best;
+      }
+    }
+    return page;
+  };
+
+  // The live editor remains a single contenteditable. Pagination is rendered into
+  // a separate preview, so caret position and editing behavior are never disturbed.
   const render = () => {
     const settings = read();
     setDimensions(settings);
     ensureUI();
-    const preview = document.getElementById('tth-pagination-preview');
+    const host = document.getElementById('tth-pagination-preview');
     const pagesHost = document.getElementById('tth-preview-pages');
     const source = editor();
-    if (!preview || !pagesHost || !source) return [];
+    if (!host || !pagesHost || !source) return [];
 
     pagesHost.replaceChildren();
-    const pages = [createPage(1)];
-    const capacity = Math.max(80, Math.floor((source.clientHeight || 700) * (1 - Math.min(.45, Math.max(0, settings.margin - 8) / 100))));
+    const pages = [createPage(1, source)];
+    pagesHost.appendChild(pages[0].el);
+    let page = pages[0];
 
-    // Clone computed typography so the preview matches the live handwriting sheet.
+    // A4/Letter preview height is real CSS size, so scrollHeight/clientHeight gives
+    // a reliable page boundary after the page has been mounted in the DOM.
     for (const child of Array.from(source.childNodes)) {
-      appendWithSplit(child, pages[pages.length - 1], pages, capacity);
+      if (child.nodeType === Node.TEXT_NODE) {
+        const clone = document.createTextNode(child.textContent || '');
+        if (fits(page.content, clone)) continue;
+        page = splitTextElement(child, page, pages, source);
+        continue;
+      }
+
+      const clone = child.cloneNode(true);
+      if (fits(page.content, clone)) continue;
+
+      // Most generated handwriting content is a glyph span with one text node.
+      // Split oversized text-bearing elements while preserving their inline style.
+      if (child.nodeType === Node.ELEMENT_NODE && child.textContent && !child.querySelector('img,canvas,table')) {
+        page = splitTextElement(child, page, pages, source);
+      } else {
+        page = createPage(pages.length + 1, source);
+        pages.push(page);
+        pagesHost.appendChild(page.el);
+        page.content.appendChild(child.cloneNode(true));
+      }
     }
 
     pages.forEach((p, i) => {
@@ -164,7 +159,6 @@
         n.textContent = `Page ${i + 1}`;
         p.el.appendChild(n);
       }
-      pagesHost.appendChild(p.el);
     });
     const count = document.getElementById('tth-page-count');
     if (count) count.textContent = `${pages.length} ${pages.length === 1 ? 'page' : 'pages'}`;
@@ -176,7 +170,6 @@
     save(settings);
     setDimensions(settings);
     document.body.classList.add('tth-page-mode');
-    document.querySelectorAll('.tth-page-number').forEach(n => n.remove());
     if (settings.preview) {
       ensureUI();
       document.getElementById('tth-pagination-preview')?.classList.add('is-visible');
@@ -185,24 +178,13 @@
     return settings;
   };
 
-  const enablePreview = () => {
-    const settings = Object.assign(read(), { preview: true });
-    save(settings);
-    apply(settings);
-  };
-
+  const enablePreview = () => apply(Object.assign(read(), { preview: true }));
   const disablePreview = () => {
     const settings = Object.assign(read(), { preview: false });
     save(settings);
     document.getElementById('tth-pagination-preview')?.classList.remove('is-visible');
   };
-
-  const disable = () => {
-    disablePreview();
-    document.body.classList.remove('tth-page-mode');
-    document.querySelectorAll('.tth-page-number').forEach(n => n.remove());
-  };
-
+  const disable = () => { disablePreview(); document.body.classList.remove('tth-page-mode'); };
   const getSettings = () => read();
   const getSizes = () => SIZES;
 
