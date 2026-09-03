@@ -1,209 +1,37 @@
 (() => {
   'use strict';
-
-  const KEY = 'tth-pagination-settings';
-  const DEFAULTS = { size: 'A4', margin: 18, showNumbers: true, preview: false };
-  const SIZES = {
-    A4: { width: '210mm', height: '297mm', label: 'A4' },
-    Letter: { width: '8.5in', height: '11in', label: 'Letter' }
+  const KEY='tth-pagination-settings';
+  const DEFAULTS={size:'A4',margin:18,showNumbers:true,preview:false};
+  const SIZES={A4:{width:'210mm',height:'297mm',label:'A4'},Letter:{width:'8.5in',height:'11in',label:'Letter'}};
+  const read=()=>{try{return Object.assign({},DEFAULTS,JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(_){return {...DEFAULTS}}};
+  const save=s=>{try{localStorage.setItem(KEY,JSON.stringify(s))}catch(_){}};
+  const editor=()=>document.querySelector('.paper-content')||document.getElementById('paper-content');
+  const installStyle=()=>{if(document.getElementById('tth-pagination-css'))return;const style=document.createElement('style');style.id='tth-pagination-css';style.textContent=`
+.tth-page-mode .paper-sheet{min-height:var(--tth-page-height);width:var(--tth-page-width);max-width:100%;margin:0 auto 22px;box-sizing:border-box;overflow:hidden}
+.tth-page-mode .paper-content{min-height:calc(var(--tth-page-height) - 36mm);box-sizing:border-box}
+.tth-page-number{position:absolute;bottom:7mm;left:0;right:0;text-align:center;font:600 11px system-ui,sans-serif;color:#64748b;pointer-events:none}
+#tth-pagination-preview{display:none;width:100%;margin-top:12px}#tth-pagination-preview.is-visible{display:block}
+.tth-preview-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:0 0 10px;font:600 12px system-ui,sans-serif;color:#64748b}
+.tth-preview-pages{display:flex;flex-direction:column;align-items:center;gap:18px}
+.tth-preview-page{position:relative;width:var(--tth-page-width);height:var(--tth-page-height);max-width:100%;box-sizing:border-box;overflow:hidden;background:#fff;box-shadow:0 10px 25px -5px rgba(0,0,0,.12);padding:var(--tth-pagination-margin)}
+.tth-preview-content{width:100%;height:100%;box-sizing:border-box;overflow:hidden;white-space:pre-wrap;word-wrap:break-word}
+@media(max-width:639px){.tth-preview-page{width:min(var(--tth-page-width),100%);height:auto;aspect-ratio:210/297}}
+@media print{.tth-preview-toolbar,#paper-wrapper,#tth-pagination-toggle{display:none!important}#tth-pagination-preview.is-visible{display:block!important}.tth-preview-pages{gap:0}.tth-preview-page{max-width:none;box-shadow:none;break-after:page;page-break-after:always}.tth-preview-page:last-child{break-after:auto;page-break-after:auto}}
+`;document.head.appendChild(style)};
+  const ensureUI=()=>{const wrap=document.getElementById('paper-wrapper');if(!wrap)return;let host=document.getElementById('tth-pagination-preview');if(!host){host=document.createElement('section');host.id='tth-pagination-preview';host.setAttribute('aria-label','Multi-page preview');host.innerHTML='<div class="tth-preview-toolbar"><span><i class="fa-solid fa-file-lines"></i> Multi-page preview</span><span id="tth-page-count">1 page</span></div><div class="tth-preview-pages" id="tth-preview-pages"></div>';wrap.parentNode.insertBefore(host,wrap.nextSibling)}
+    if(!document.getElementById('tth-pagination-toggle')){const clear=document.getElementById('clear-input-btn');if(clear){const b=document.createElement('button');b.id='tth-pagination-toggle';b.type='button';b.className=clear.className;b.innerHTML='<i class="fa-solid fa-copy mr-1"></i> Pages';b.title='Toggle multi-page preview';clear.parentNode.insertBefore(b,clear);b.addEventListener('click',()=>{read().preview?disablePreview():enablePreview()})}}
   };
-
-  const read = () => {
-    try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem(KEY) || '{}')); }
-    catch (_) { return { ...DEFAULTS }; }
-  };
-  const save = settings => { try { localStorage.setItem(KEY, JSON.stringify(settings)); } catch (_) {} };
-  const editor = () => document.querySelector('.paper-content') || document.getElementById('paper-content');
-
-  const installStyle = () => {
-    if (document.getElementById('tth-pagination-css')) return;
-    const style = document.createElement('style');
-    style.id = 'tth-pagination-css';
-    style.textContent = `
-      .tth-page-mode .paper-sheet { min-height:var(--tth-page-height); width:var(--tth-page-width); max-width:100%; margin:0 auto 22px; box-sizing:border-box; overflow:hidden; }
-      .tth-page-mode .paper-content { min-height:calc(var(--tth-page-height) - 36mm); box-sizing:border-box; }
-      .tth-page-number { position:absolute; bottom:7mm; left:0; right:0; text-align:center; font:600 11px system-ui,sans-serif; color:#64748b; pointer-events:none; }
-      #tth-pagination-preview { display:none; width:100%; margin-top:12px; }
-      #tth-pagination-preview.is-visible { display:block; }
-      .tth-preview-toolbar { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin:0 0 10px; font:600 12px system-ui,sans-serif; color:#64748b; }
-      .tth-preview-pages { display:flex; flex-direction:column; align-items:center; gap:18px; }
-      .tth-preview-page { position:relative; width:var(--tth-page-width); height:var(--tth-page-height); max-width:100%; box-sizing:border-box; overflow:hidden; background:#fff; box-shadow:0 10px 25px -5px rgba(0,0,0,.12); padding:var(--tth-pagination-margin); }
-      .tth-preview-content { width:100%; height:100%; box-sizing:border-box; overflow:hidden; white-space:pre-wrap; word-wrap:break-word; }
-      .tth-preview-page .tth-page-number { bottom:5mm; }
-      @media (max-width:639px){ .tth-preview-page{ width:min(var(--tth-page-width),100%); height:auto; aspect-ratio:210/297; } }
-      @media print {
-        .tth-preview-toolbar,#paper-wrapper { display:none !important; }
-        #tth-pagination-preview.is-visible { display:block !important; }
-        .tth-preview-pages { gap:0; }
-        .tth-preview-page { max-width:none; box-shadow:none; break-after:page; page-break-after:always; }
-        .tth-preview-page:last-child { break-after:auto; page-break-after:auto; }
-      }
-    `;
-    document.head.appendChild(style);
-  };
-
-  const ensureUI = () => {
-    const paperWrapper = document.getElementById('paper-wrapper');
-    if (!paperWrapper || document.getElementById('tth-pagination-preview')) return;
-    const host = document.createElement('section');
-    host.id = 'tth-pagination-preview';
-    host.setAttribute('aria-label', 'Multi-page preview');
-    host.innerHTML = '<div class="tth-preview-toolbar"><span><i class="fa-solid fa-file-lines"></i> Multi-page preview</span><span id="tth-page-count">1 page</span></div><div class="tth-preview-pages" id="tth-preview-pages"></div>';
-    paperWrapper.parentNode.insertBefore(host, paperWrapper.nextSibling);
-  };
-
-  const setDimensions = settings => {
-    const size = SIZES[settings.size] || SIZES.A4;
-    document.documentElement.style.setProperty('--tth-page-width', size.width);
-    document.documentElement.style.setProperty('--tth-page-height', size.height);
-    document.documentElement.style.setProperty('--tth-pagination-margin', `${Math.max(8, Number(settings.margin) || 18)}mm`);
-  };
-
-  const createPage = (number, source) => {
-    const page = document.createElement('div');
-    page.className = 'tth-preview-page';
-    page.dataset.page = String(number);
-    const content = document.createElement('div');
-    content.className = 'tth-preview-content';
-    if (source) {
-      const cs = getComputedStyle(source);
-      ['fontFamily','fontSize','fontWeight','fontStyle','color','lineHeight','letterSpacing','wordSpacing','textAlign'].forEach(k => content.style[k] = cs[k]);
-    }
-    page.appendChild(content);
-    return { el: page, content };
-  };
-
-  const fits = (content, node) => {
-    content.appendChild(node);
-    const ok = content.scrollHeight <= content.clientHeight + 1;
-    if (!ok) content.removeChild(node);
-    return ok;
-  };
-
-  const splitTextElement = (source, page, pages, sourceEditor) => {
-    const value = source.textContent || '';
-    if (!value) return page;
-    let start = 0;
-    while (start < value.length) {
-      let lo = start + 1, hi = value.length, best = start;
-      while (lo <= hi) {
-        const mid = (lo + hi) >> 1;
-        const probe = source.cloneNode(false);
-        probe.textContent = value.slice(start, mid);
-        if (fits(page.content, probe)) { best = mid; lo = mid + 1; }
-        else hi = mid - 1;
-      }
-      if (best === start) {
-        page = createPage(pages.length + 1, sourceEditor);
-        pages.push(page);
-        document.getElementById('tth-preview-pages').appendChild(page.el);
-        const one = source.cloneNode(false);
-        one.textContent = value.slice(start, start + 1);
-        page.content.appendChild(one);
-        start += 1;
-      } else {
-        const chunk = source.cloneNode(false);
-        chunk.textContent = value.slice(start, best);
-        page.content.appendChild(chunk);
-        start = best;
-      }
-    }
-    return page;
-  };
-
-  // The live editor remains a single contenteditable. Pagination is rendered into
-  // a separate preview, so caret position and editing behavior are never disturbed.
-  const render = () => {
-    const settings = read();
-    setDimensions(settings);
-    ensureUI();
-    const host = document.getElementById('tth-pagination-preview');
-    const pagesHost = document.getElementById('tth-preview-pages');
-    const source = editor();
-    if (!host || !pagesHost || !source) return [];
-
-    pagesHost.replaceChildren();
-    const pages = [createPage(1, source)];
-    pagesHost.appendChild(pages[0].el);
-    let page = pages[0];
-
-    // A4/Letter preview height is real CSS size, so scrollHeight/clientHeight gives
-    // a reliable page boundary after the page has been mounted in the DOM.
-    for (const child of Array.from(source.childNodes)) {
-      if (child.nodeType === Node.TEXT_NODE) {
-        const clone = document.createTextNode(child.textContent || '');
-        if (fits(page.content, clone)) continue;
-        page = splitTextElement(child, page, pages, source);
-        continue;
-      }
-
-      const clone = child.cloneNode(true);
-      if (fits(page.content, clone)) continue;
-
-      // Most generated handwriting content is a glyph span with one text node.
-      // Split oversized text-bearing elements while preserving their inline style.
-      if (child.nodeType === Node.ELEMENT_NODE && child.textContent && !child.querySelector('img,canvas,table')) {
-        page = splitTextElement(child, page, pages, source);
-      } else {
-        page = createPage(pages.length + 1, source);
-        pages.push(page);
-        pagesHost.appendChild(page.el);
-        page.content.appendChild(child.cloneNode(true));
-      }
-    }
-
-    pages.forEach((p, i) => {
-      if (settings.showNumbers) {
-        const n = document.createElement('div');
-        n.className = 'tth-page-number';
-        n.textContent = `Page ${i + 1}`;
-        p.el.appendChild(n);
-      }
-    });
-    const count = document.getElementById('tth-page-count');
-    if (count) count.textContent = `${pages.length} ${pages.length === 1 ? 'page' : 'pages'}`;
-    return pages;
-  };
-
-  const apply = overrides => {
-    const settings = Object.assign(read(), overrides || {});
-    save(settings);
-    setDimensions(settings);
-    document.body.classList.add('tth-page-mode');
-    if (settings.preview) {
-      ensureUI();
-      document.getElementById('tth-pagination-preview')?.classList.add('is-visible');
-      requestAnimationFrame(render);
-    }
-    return settings;
-  };
-
-  const enablePreview = () => apply(Object.assign(read(), { preview: true }));
-  const disablePreview = () => {
-    const settings = Object.assign(read(), { preview: false });
-    save(settings);
-    document.getElementById('tth-pagination-preview')?.classList.remove('is-visible');
-  };
-  const disable = () => { disablePreview(); document.body.classList.remove('tth-page-mode'); };
-  const getSettings = () => read();
-  const getSizes = () => SIZES;
-
-  const boot = () => {
-    installStyle();
-    ensureUI();
-    window.TTHPagination = { apply, disable, render, enablePreview, disablePreview, getSettings, getSizes };
-    const e = editor();
-    if (e) {
-      let timer;
-      e.addEventListener('input', () => {
-        if (!read().preview) return;
-        clearTimeout(timer);
-        timer = setTimeout(render, 120);
-      });
-    }
-    if (read().preview) apply(read());
-  };
-
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true });
-  else boot();
+  const setDimensions=s=>{const z=SIZES[s.size]||SIZES.A4;document.documentElement.style.setProperty('--tth-page-width',z.width);document.documentElement.style.setProperty('--tth-page-height',z.height);document.documentElement.style.setProperty('--tth-pagination-margin',`${Math.max(8,Number(s.margin)||18)}mm`)};
+  const createPage=(n,source)=>{const el=document.createElement('div');el.className='tth-preview-page';el.dataset.page=String(n);const content=document.createElement('div');content.className='tth-preview-content';if(source){const cs=getComputedStyle(source);['fontFamily','fontSize','fontWeight','fontStyle','color','lineHeight','letterSpacing','wordSpacing','textAlign'].forEach(k=>content.style[k]=cs[k])}el.appendChild(content);return{el,content}};
+  const fits=(content,node)=>{content.appendChild(node);const ok=content.scrollHeight<=content.clientHeight+1;if(!ok)content.removeChild(node);return ok};
+  const splitText=(source,page,pages,sourceEditor,host)=>{const value=source.textContent||'';let start=0;while(start<value.length){let lo=start+1,hi=value.length,best=start;while(lo<=hi){const mid=(lo+hi)>>1,probe=source.cloneNode(false);probe.textContent=value.slice(start,mid);if(fits(page.content,probe)){best=mid;lo=mid+1}else hi=mid-1}if(best===start){page=createPage(pages.length+1,sourceEditor);pages.push(page);host.appendChild(page.el);const one=source.cloneNode(false);one.textContent=value.slice(start,start+1);page.content.appendChild(one);start++}else{const chunk=source.cloneNode(false);chunk.textContent=value.slice(start,best);page.content.appendChild(chunk);start=best}}return page};
+  const render=()=>{const s=read(),source=editor(),host=document.getElementById('tth-pagination-preview'),pagesHost=document.getElementById('tth-preview-pages');if(!source||!host||!pagesHost)return[];setDimensions(s);pagesHost.replaceChildren();const pages=[createPage(1,source)];pagesHost.appendChild(pages[0].el);let page=pages[0];for(const child of Array.from(source.childNodes)){if(child.nodeType===Node.TEXT_NODE){const clone=document.createTextNode(child.textContent||'');if(!fits(page.content,clone))page=splitText(child,page,pages,source,pagesHost);continue}const clone=child.cloneNode(true);if(fits(page.content,clone))continue;if(child.nodeType===Node.ELEMENT_NODE&&child.textContent&&!child.querySelector('img,canvas,table'))page=splitText(child,page,pages,source,pagesHost);else{page=createPage(pages.length+1,source);pages.push(page);pagesHost.appendChild(page.el);page.content.appendChild(child.cloneNode(true))}}
+    pages.forEach((p,i)=>{if(s.showNumbers){const n=document.createElement('div');n.className='tth-page-number';n.textContent=`Page ${i+1}`;p.el.appendChild(n)}});const count=document.getElementById('tth-page-count');if(count)count.textContent=`${pages.length} ${pages.length===1?'page':'pages'}`;return pages};
+  const apply=overrides=>{const s=Object.assign(read(),overrides||{});save(s);setDimensions(s);document.body.classList.add('tth-page-mode');ensureUI();const preview=document.getElementById('tth-pagination-preview');if(s.preview){preview?.classList.add('is-visible');requestAnimationFrame(render)}else preview?.classList.remove('is-visible');return s};
+  const enablePreview=()=>apply(Object.assign(read(),{preview:true}));
+  const disablePreview=()=>{const s=Object.assign(read(),{preview:false});save(s);document.getElementById('tth-pagination-preview')?.classList.remove('is-visible')};
+  const disable=()=>{disablePreview();document.body.classList.remove('tth-page-mode')};
+  const getSettings=()=>read(),getSizes=()=>SIZES;
+  const boot=()=>{installStyle();ensureUI();window.TTHPagination={apply,disable,render,enablePreview,disablePreview,getSettings,getSizes};const e=editor();if(e){let timer;e.addEventListener('input',()=>{if(!read().preview)return;clearTimeout(timer);timer=setTimeout(render,120)})}if(read().preview)apply(read())};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
