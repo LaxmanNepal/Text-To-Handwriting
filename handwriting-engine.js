@@ -1,178 +1,102 @@
 (() => {
   'use strict';
 
-  // Phase 2: procedural handwriting variation.
-  // The selected handwriting font remains intact, while individual glyphs get
-  // deterministic micro-variation in rotation, vertical position, scale and ink.
+  // Phase 2.2: contextual glyph variation.
+  // We keep the user's selected font, but repeated characters receive
+  // deterministic alternate letterforms through subtle contextual shaping.
   const STYLE_ID = 'tth-handwriting-engine-css';
   const ROOT_CLASS = 'tth-handwriting-rendered';
   const SETTINGS_KEY = 'tth-studio-v3-settings';
-  let enabled = true;
-  let observer = null;
-  let raf = 0;
+  let enabled = true, observer = null, raf = 0;
 
-  const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
+  const clamp = (n,a,b) => Math.min(b,Math.max(a,n));
+  const hash = text => { let h=2166136261; for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,16777619);} return h>>>0; };
+  const random = seed => { let x=seed>>>0; x^=x<<13;x^=x>>>17;x^=x<<5; return ((x>>>0)%100000)/100000; };
 
-  const hash = (text) => {
-    let h = 2166136261;
-    for (let i = 0; i < text.length; i++) {
-      h ^= text.charCodeAt(i);
-      h = Math.imul(h, 16777619);
-    }
-    return h >>> 0;
-  };
-
-  const random = (seed) => {
-    let x = seed >>> 0;
-    x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
-    return ((x >>> 0) % 100000) / 100000;
-  };
-
-  const ensureStyle = () => {
-    if (document.getElementById(STYLE_ID)) return;
-    const style = document.createElement('style');
-    style.id = STYLE_ID;
-    style.textContent = `
-      .${ROOT_CLASS} .tth-glyph {
-        display: inline-block;
-        transform-origin: 50% 85%;
-        will-change: transform, opacity;
-        white-space: pre;
-      }
-      .${ROOT_CLASS} .tth-space { white-space: pre; }
+  const ensureStyle=()=>{
+    if(document.getElementById(STYLE_ID)) return;
+    const s=document.createElement('style'); s.id=STYLE_ID;
+    s.textContent=`
+      .${ROOT_CLASS} .tth-glyph{display:inline-block;transform-origin:50% 85%;will-change:transform,opacity;white-space:pre;position:relative}
+      .${ROOT_CLASS} .tth-space{white-space:pre}
+      .${ROOT_CLASS} .tth-glyph.v1{font-variation-settings:"wght" 430}
+      .${ROOT_CLASS} .tth-glyph.v2{letter-spacing:-.025em}
+      .${ROOT_CLASS} .tth-glyph.v3{letter-spacing:.018em}
+      .${ROOT_CLASS} .tth-glyph.v4{font-stretch:96%}
     `;
-    document.head.appendChild(style);
+    document.head.appendChild(s);
   };
 
-  const getSettings = () => {
-    let stored = {};
-    try { stored = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (_) {}
-    const source = Object.assign({}, stored, window.TTHHandwritingSettings || {});
-    const content = document.querySelector('.paper-content');
-    return {
-      realism: clamp(Number(source.realism ?? 35), 0, 100),
-      rotation: clamp(Number(source.rotation ?? 2), 0, 6),
-      opacity: clamp(Number(source.opacity ?? 92), 50, 100),
-      spacing: Number(source.spacing ?? 0),
-      seed: Number(source.seed ?? 1),
-      content
-    };
+  const getSettings=()=>{
+    let stored={}; try{stored=JSON.parse(localStorage.getItem(SETTINGS_KEY)||'{}')||{}}catch(_){}
+    const source=Object.assign({},stored,window.TTHHandwritingSettings||{});
+    return {realism:clamp(Number(source.realism??35),0,100),rotation:clamp(Number(source.rotation??2),0,6),opacity:clamp(Number(source.opacity??92),50,100),spacing:Number(source.spacing??0),seed:Number(source.seed??1),content:document.querySelector('.paper-content')};
   };
 
-  const shouldSkip = (element) => {
-    if (!element) return true;
-    return element.closest?.('img,button,input,textarea,select,script,style,.tth-glyph,.tth-space');
+  const skip=el=>!el||el.closest?.('img,button,input,textarea,select,script,style,.tth-glyph,.tth-space');
+  const variantFor=(char,seed,amount)=>{
+    if(amount<.2) return 0;
+    // Only vary common letters; punctuation and numbers remain stable.
+    if(!/[A-Za-z]/.test(char)) return 0;
+    return Math.floor(random(seed+701)*4)+1;
   };
 
-  const wrapTextNode = (node, settings, path) => {
-    const text = node.nodeValue || '';
-    if (!text) return;
-    const fragment = document.createDocumentFragment();
-    let position = 0;
-    for (const char of text) {
-      if (char === '\n') {
-        fragment.appendChild(document.createElement('br'));
-        position++;
-        continue;
-      }
-      if (char === ' ' || char === '\t') {
-        const span = document.createElement('span');
-        span.className = 'tth-space';
-        span.textContent = char;
-        fragment.appendChild(span);
-        position++;
-        continue;
-      }
-      const span = document.createElement('span');
-      span.className = 'tth-glyph';
-      span.textContent = char;
-      const seed = hash(`${settings.seed}|${path}|${position}|${char}`);
-      const r1 = random(seed);
-      const r2 = random(seed + 101);
-      const r3 = random(seed + 202);
-      const amount = settings.realism / 100;
-      const angle = (r1 - 0.5) * settings.rotation * amount * 2;
-      const y = (r2 - 0.5) * 1.8 * amount;
-      const scale = 1 + (r3 - 0.5) * 0.035 * amount;
-      const inkJitter = (r1 - 0.5) * 0.10 * amount;
-      const opacity = clamp(settings.opacity / 100 + inkJitter, 0.35, 1);
-      const spacing = settings.spacing + (r2 - 0.5) * 0.45 * amount;
-      span.style.transform = `translateY(${y.toFixed(2)}px) rotate(${angle.toFixed(2)}deg) scale(${scale.toFixed(4)})`;
-      span.style.opacity = opacity.toFixed(3);
-      span.style.marginRight = `${spacing.toFixed(2)}px`;
-      fragment.appendChild(span);
-      position++;
+  const wrap=(node,settings,path)=>{
+    const text=node.nodeValue||''; if(!text) return;
+    const frag=document.createDocumentFragment(); let pos=0;
+    for(const char of text){
+      if(char==='\n'){frag.appendChild(document.createElement('br'));pos++;continue;}
+      if(char===' '||char==='\t'){const sp=document.createElement('span');sp.className='tth-space';sp.textContent=char;frag.appendChild(sp);pos++;continue;}
+      const sp=document.createElement('span'); sp.className='tth-glyph'; sp.textContent=char;
+      const seed=hash(`${settings.seed}|${path}|${pos}|${char}`);
+      const r1=random(seed),r2=random(seed+101),r3=random(seed+202),r4=random(seed+303);
+      const amount=settings.realism/100, variant=variantFor(char,seed,amount);
+      if(variant) sp.classList.add('v'+variant);
+      const angle=(r1-.5)*settings.rotation*amount*2;
+      const y=(r2-.5)*1.8*amount;
+      const x=(r4-.5)*.45*amount;
+      const sx=1+(r3-.5)*.028*amount;
+      const sy=1+(r2-.5)*.045*amount;
+      const ink=(r1-.5)*.10*amount;
+      const opacity=clamp(settings.opacity/100+ink,.35,1);
+      const spacing=settings.spacing+(r2-.5)*.45*amount;
+      sp.style.transform=`translate(${x.toFixed(2)}px,${y.toFixed(2)}px) rotate(${angle.toFixed(2)}deg) scale(${sx.toFixed(4)},${sy.toFixed(4)})`;
+      sp.style.opacity=opacity.toFixed(3); sp.style.marginRight=`${spacing.toFixed(2)}px`;
+      frag.appendChild(sp);pos++;
     }
-    node.replaceWith(fragment);
+    node.replaceWith(frag);
   };
 
-  const render = () => {
+  const render=()=>{
     cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(() => {
-      const settings = getSettings();
-      const content = settings.content;
-      if (!enabled || !content || content.dataset.tthRendering === '1') return;
-      content.dataset.tthRendering = '1';
-      ensureStyle();
-      content.classList.add(ROOT_CLASS);
-      const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
-      const nodes = [];
-      let node;
-      while ((node = walker.nextNode())) {
-        if (!shouldSkip(node.parentElement)) nodes.push(node);
-      }
-      nodes.forEach((textNode, index) => wrapTextNode(textNode, settings, index));
+    raf=requestAnimationFrame(()=>{
+      const settings=getSettings(),content=settings.content;
+      if(!enabled||!content||content.dataset.tthRendering==='1')return;
+      content.dataset.tthRendering='1';ensureStyle();content.classList.add(ROOT_CLASS);
+      const walker=document.createTreeWalker(content,NodeFilter.SHOW_TEXT),nodes=[];let n;
+      while((n=walker.nextNode()))if(!skip(n.parentElement))nodes.push(n);
+      nodes.forEach((n,i)=>wrap(n,settings,i));
       delete content.dataset.tthRendering;
     });
   };
 
-  const unwrap = () => {
-    const content = document.querySelector('.paper-content');
-    if (!content) return;
-    content.querySelectorAll('.tth-glyph, .tth-space').forEach(span => {
-      span.replaceWith(document.createTextNode(span.textContent || ''));
-    });
-    content.normalize();
-    content.classList.remove(ROOT_CLASS);
+  const unwrap=()=>{
+    const content=document.querySelector('.paper-content');if(!content)return;
+    content.querySelectorAll('.tth-glyph,.tth-space').forEach(sp=>sp.replaceWith(document.createTextNode(sp.textContent||'')));
+    content.normalize();content.classList.remove(ROOT_CLASS);
   };
+  const refresh=()=>{const c=document.querySelector('.paper-content');if(!c)return;unwrap();render();};
+  const setSettings=settings=>{window.TTHHandwritingSettings=Object.assign({},window.TTHHandwritingSettings||{},settings);refresh();};
+  const setEnabled=value=>{enabled=Boolean(value);enabled?refresh():unwrap();};
 
-  const refresh = () => {
-    const content = document.querySelector('.paper-content');
-    if (!content) return;
-    unwrap();
+  const boot=()=>{
+    window.TTHHandwritingEngine={refresh,setSettings,setEnabled};
+    const content=document.querySelector('.paper-content');if(!content)return;
+    observer?.disconnect();
+    observer=new MutationObserver(ms=>{if(content.dataset.tthRendering==='1')return;if(ms.some(m=>m.type==='childList'||m.type==='characterData'))render();});
+    observer.observe(content,{childList:true,subtree:true,characterData:true});
+    document.addEventListener('input',e=>{if(e.target?.matches?.('[data-range]'))refresh();},true);
     render();
   };
-
-  const setSettings = (settings) => {
-    window.TTHHandwritingSettings = Object.assign({}, window.TTHHandwritingSettings || {}, settings);
-    refresh();
-  };
-
-  const setEnabled = (value) => {
-    enabled = Boolean(value);
-    if (enabled) refresh(); else unwrap();
-  };
-
-  const boot = () => {
-    window.TTHHandwritingEngine = { refresh, setSettings, setEnabled };
-    const content = document.querySelector('.paper-content');
-    if (!content) return;
-    if (observer) observer.disconnect();
-    observer = new MutationObserver((mutations) => {
-      if (content.dataset.tthRendering === '1') return;
-      if (mutations.some(m => m.type === 'childList' || m.type === 'characterData')) render();
-    });
-    observer.observe(content, { childList: true, subtree: true, characterData: true });
-
-    // Studio sliders change localStorage in the same tab, so listen for the
-    // input event rather than relying on the window storage event.
-    document.addEventListener('input', event => {
-      if (event.target?.matches?.('[data-range]')) refresh();
-    }, true);
-
-    render();
-  };
-
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
-  else boot();
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
