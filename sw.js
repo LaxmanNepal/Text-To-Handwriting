@@ -1,10 +1,10 @@
-const CACHE = 'tth-pwa-v15';
+const CACHE = 'tth-pwa-v16';
 const APP_SCOPE = '/Text-To-Handwriting/';
 const APP_SHELL = [
   `${APP_SCOPE}`, `${APP_SCOPE}index.html`, `${APP_SCOPE}manifest.webmanifest`,
   `${APP_SCOPE}mobile-responsive.css`,
   `${APP_SCOPE}studio-v2.js`, `${APP_SCOPE}handwriting-engine.js`,
-  `${APP_SCOPE}pagination.js`, `${APP_SCOPE}export-engine.js`, `${APP_SCOPE}pwa.js`,
+  `${APP_SCOPE}pagination.js`, `${APP_SCOPE}export-engine.js`, `${APP_SCOPE}project-manager.js`, `${APP_SCOPE}pwa.js`,
   `${APP_SCOPE}offline-storage.js`, `${APP_SCOPE}documents.js`, `${APP_SCOPE}page-history.js`,
   `${APP_SCOPE}icons/icon.svg`
 ];
@@ -37,9 +37,6 @@ async function cacheResponse(request, response) {
   return response;
 }
 
-// Versioned script URLs such as pagination.js?v=2 must still resolve to the
-// app-shell copy cached without a query string. ignoreSearch prevents an
-// offline first-load failure caused by cache-key mismatch.
 async function matchAppCache(request) {
   const exact = await caches.match(request);
   if (exact) return exact;
@@ -48,10 +45,8 @@ async function matchAppCache(request) {
 
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
-
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin || !url.pathname.startsWith(APP_SCOPE)) return;
-
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
@@ -63,7 +58,6 @@ self.addEventListener('fetch', event => {
     );
     return;
   }
-
   event.respondWith(
     matchAppCache(event.request)
       .then(cached => cached || fetch(event.request).then(response => cacheResponse(event.request, response)))
@@ -71,7 +65,5 @@ self.addEventListener('fetch', event => {
 });
 
 self.addEventListener('message', event => {
-  if (event.data === 'SKIP_WAITING' || event.data?.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
+  if (event.data === 'SKIP_WAITING' || event.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
