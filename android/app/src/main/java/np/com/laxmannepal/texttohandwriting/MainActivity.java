@@ -13,8 +13,9 @@ import android.webkit.WebViewClient;
 import android.widget.Toast;
 
 public final class MainActivity extends Activity {
-    private static final String APP_HOST = "apps.laxmannepal.com.np";
-    private static final String START_URL = "https://apps.laxmannepal.com.np/Text-To-Handwriting/?source=android";
+    private static final String APP_HOST = "laxmannepal.com.np";
+    private static final String APP_PATH = "/Text-To-Handwriting/";
+    private static final String START_URL = "https://laxmannepal.com.np/Text-To-Handwriting/?source=android";
     private WebView webView;
 
     @Override public void onCreate(Bundle state) {
@@ -47,7 +48,10 @@ public final class MainActivity extends Activity {
     }
 
     private boolean openUrl(Uri uri) {
-        if ("https".equalsIgnoreCase(uri.getScheme()) && APP_HOST.equalsIgnoreCase(uri.getHost())) return false;
+        if ("https".equalsIgnoreCase(uri.getScheme())
+                && APP_HOST.equalsIgnoreCase(uri.getHost())
+                && uri.getPath() != null
+                && uri.getPath().startsWith(APP_PATH)) return false;
         try { startActivity(new Intent(Intent.ACTION_VIEW, uri)); } catch (Exception ignored) {}
         return true;
     }
