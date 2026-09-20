@@ -33,3 +33,140 @@ html,body{overflow-x:hidden}
   .paper-line-row{height:28px!important}
 }
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition-duration:.01ms!important}}
+
+/* =========================================================
+   LaxmanNepal domain-migration UI polish
+   Prevent injected PWA/studio/project/history controls from
+   stacking on top of each other after moving domains.
+   ========================================================= */
+
+:root{
+  --tth-brand:#0284c7;
+  --tth-brand-dark:#0369a1;
+  --tth-surface:rgba(255,255,255,.94);
+  --tth-border:rgba(148,163,184,.28);
+  --tth-shadow:0 12px 35px rgba(15,23,42,.14);
+}
+
+body{
+  background:
+    radial-gradient(circle at 15% 0%,rgba(14,165,233,.10),transparent 28%),
+    radial-gradient(circle at 90% 10%,rgba(59,130,246,.08),transparent 25%),
+    #f8fafc!important;
+}
+
+.dark body{
+  background:#0f172a!important;
+}
+
+/* Floating utilities become a clean horizontal action dock. */
+#tth-project-toggle,
+#page-history-toggle,
+#studio-install,
+#pwa-install-button{
+  bottom:14px!important;
+  top:auto!important;
+  border:1px solid rgba(255,255,255,.45)!important;
+  backdrop-filter:blur(18px)!important;
+  -webkit-backdrop-filter:blur(18px)!important;
+  box-shadow:var(--tth-shadow)!important;
+  transition:transform .18s ease,box-shadow .18s ease!important;
+}
+
+#tth-project-toggle:hover,
+#page-history-toggle:hover,
+#studio-install:hover,
+#pwa-install-button:hover{
+  transform:translateY(-2px)!important;
+}
+
+#tth-project-toggle{right:14px!important}
+#page-history-toggle{right:125px!important}
+#studio-install{right:225px!important}
+#pwa-install-button{right:335px!important}
+
+/* Keep injected panels below the header and inside the viewport. */
+#tth-projects,
+#page-history,
+.studio-v2{
+  z-index:10020!important;
+  max-width:calc(100vw - 20px)!important;
+}
+
+/* Brighter, cleaner editor shell. */
+#paper-wrapper{
+  background:rgba(241,245,249,.82)!important;
+  border-color:rgba(148,163,184,.32)!important;
+  box-shadow:inset 0 1px 2px rgba(15,23,42,.06),0 10px 35px rgba(15,23,42,.06)!important;
+}
+
+.paper-sheet{
+  border:1px solid rgba(148,163,184,.18);
+  box-shadow:0 18px 45px rgba(15,23,42,.12)!important;
+}
+
+/* Touch targets and form controls. */
+button,select,input[type=file]{
+  -webkit-tap-highlight-color:transparent;
+}
+
+@media(max-width:639px){
+  body{padding-bottom:74px!important}
+
+  #tth-project-toggle,
+  #page-history-toggle,
+  #studio-install,
+  #pwa-install-button{
+    bottom:10px!important;
+    min-height:42px!important;
+    padding:10px 11px!important;
+    border-radius:14px!important;
+    font-size:11px!important;
+  }
+
+  #tth-project-toggle{right:8px!important}
+  #page-history-toggle{right:94px!important}
+  #studio-install{right:180px!important}
+  #pwa-install-button{right:266px!important}
+
+  /* On narrow screens, keep the four actions usable instead of overlapping. */
+  @media(max-width:430px){
+    #tth-project-toggle,
+    #page-history-toggle,
+    #studio-install,
+    #pwa-install-button{
+      width:calc((100vw - 28px)/4)!important;
+      justify-content:center!important;
+      white-space:nowrap!important;
+      overflow:hidden!important;
+      text-overflow:ellipsis!important;
+      padding-left:6px!important;
+      padding-right:6px!important;
+    }
+    #tth-project-toggle{right:7px!important}
+    #page-history-toggle{right:calc((100vw - 28px)/4 + 14px)!important}
+    #studio-install{right:calc(2 * ((100vw - 28px)/4) + 21px)!important}
+    #pwa-install-button{right:calc(3 * ((100vw - 28px)/4) + 28px)!important}
+  }
+
+  #tth-projects,
+  #page-history,
+  .studio-v2{
+    top:62px!important;
+    right:8px!important;
+    width:calc(100vw - 16px)!important;
+    max-height:calc(100vh - 86px)!important;
+    border-radius:18px!important;
+  }
+
+  #paper-wrapper{padding:7px!important}
+  #paper-sheet{border-radius:10px!important}
+  .paper-content{font-size:12pt!important}
+}
+
+@media(prefers-reduced-motion:reduce){
+  #tth-project-toggle,
+  #page-history-toggle,
+  #studio-install,
+  #pwa-install-button{transition:none!important}
+}
