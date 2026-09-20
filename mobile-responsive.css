@@ -90,7 +90,7 @@ button{touch-action:manipulation}
 
 /* Mobile layout */
 @media(max-width:639px){
-  body{padding-bottom:76px!important}
+  body{padding-bottom:calc(76px + env(safe-area-inset-bottom))!important}
 
   main{
     width:100%!important;
@@ -192,7 +192,7 @@ button{touch-action:manipulation}
   .studio-install,
   #pwa-install-button{
     top:auto!important;
-    bottom:10px!important;
+    bottom:calc(10px + env(safe-area-inset-bottom))!important;
     height:44px!important;
     min-height:44px!important;
     width:calc((100vw - 40px)/4)!important;
