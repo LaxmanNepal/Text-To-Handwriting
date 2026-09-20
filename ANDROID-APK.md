@@ -29,6 +29,6 @@ When a stable key is configured, pushing a tag such as `android-v1.0.0` builds t
 
 For a production TWA, the SHA-256 fingerprint printed by the workflow should be published at:
 
-`https://apps.laxmannepal.com.np/.well-known/assetlinks.json`
+`https://laxmannepal.com.np/.well-known/assetlinks.json`
 
 The asset links entry must use package name `np.com.laxmannepal.texttohandwriting` and the SHA-256 certificate fingerprint belonging to the stable release signing key.
