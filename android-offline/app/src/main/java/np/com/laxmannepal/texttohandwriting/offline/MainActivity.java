@@ -11,7 +11,7 @@ import androidx.webkit.WebViewAssetLoader;
 public class MainActivity extends Activity {
     private WebView webView;
     private WebViewAssetLoader assetLoader;
-    private static final String START = "https://appassets.androidplatform.net/assets/www/Text-To-Handwriting/index.html";
+    private static final String START = "https://appassets.androidplatform.net/assets/www/index.html";
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
