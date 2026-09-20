@@ -1,71 +1,74 @@
-/* Mobile-only layout. Desktop styles remain untouched. */
-html,body{overflow-x:hidden}
-@media(max-width:639px){
-  *,*::before,*::after{box-sizing:border-box}
-  body{min-width:0}
-  main{width:100%!important;max-width:100%!important;margin:0!important;padding:10px 8px 28px!important}
-  main>.grid{display:flex!important;flex-direction:column!important;width:100%!important;gap:16px!important}
-  #paper-section,#customization-section,#output-section{width:100%!important;max-width:100%!important;min-width:0!important}
-  #paper-wrapper{width:100%!important;max-width:100%!important;padding:6px!important;overflow:hidden!important;border-radius:14px!important}
-  #paper-sheet{width:100%!important;max-width:100%!important;height:auto!important;min-height:560px!important;padding:12px!important;overflow:hidden!important}
-  /* One shared mobile coordinate system: red margin, text origin and ruled lines. */
-  #paper-top-space{height:40px!important}
-  #paper-margin-line{left:40px!important;width:2px!important}
-  #paper-left-gap{width:40px!important;min-width:40px!important;flex:0 0 40px!important}
-  #paper-content{margin:0!important;padding:0!important;min-width:0!important;width:auto!important}
-  .paper-content{font-size:12pt!important;line-height:30px!important;overflow-wrap:anywhere!important;word-break:normal!important}
-  .paper-line-row{height:30px!important}
-  #customization-section>div{width:100%!important;max-width:100%!important;padding:14px!important}
-  #customization-section input,#customization-section select,#customization-section textarea{max-width:100%!important;min-width:0!important;font-size:16px!important}
-  #customization-section .grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
-  button,select,input[type=file]{min-height:42px}
-  [role=dialog],#draw-modal,.fixed.inset-0>div{max-width:calc(100vw - 16px)!important}
-  #diagram-canvas{max-width:100%!important;touch-action:none}
-}
-@media(max-width:380px){
-  main{padding-left:6px!important;padding-right:6px!important}
-  #paper-wrapper{padding:5px!important}
-  #paper-sheet{padding:9px!important;min-height:520px!important}
-  #paper-top-space{height:40px!important}
-  #paper-margin-line{left:34px!important}
-  #paper-left-gap{width:35px!important;min-width:35px!important;flex-basis:35px!important}
-  .paper-content{font-size:11.5pt!important;line-height:28px!important}
-  .paper-line-row{height:28px!important}
-}
-@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition-duration:.01ms!important}}
-
 /* =========================================================
-   LaxmanNepal domain-migration UI polish
-   Prevent injected PWA/studio/project/history controls from
-   stacking on top of each other after moving domains.
+   Text to Handwriting — responsive UI
+   Domain migration safe: all assets use relative URLs.
    ========================================================= */
 
+html,body{overflow-x:hidden}
+*,*::before,*::after{box-sizing:border-box}
+
 :root{
-  --tth-brand:#0284c7;
-  --tth-brand-dark:#0369a1;
-  --tth-surface:rgba(255,255,255,.94);
-  --tth-border:rgba(148,163,184,.28);
-  --tth-shadow:0 12px 35px rgba(15,23,42,.14);
+  --tth-blue:#0284c7;
+  --tth-blue-dark:#0369a1;
+  --tth-border:#e2e8f0;
+  --tth-shadow:0 12px 32px rgba(15,23,42,.12);
 }
 
 body{
+  min-width:0;
   background:
-    radial-gradient(circle at 15% 0%,rgba(14,165,233,.10),transparent 28%),
-    radial-gradient(circle at 90% 10%,rgba(59,130,246,.08),transparent 25%),
+    radial-gradient(circle at 12% 0%,rgba(14,165,233,.10),transparent 30%),
+    radial-gradient(circle at 90% 5%,rgba(59,130,246,.07),transparent 25%),
     #f8fafc!important;
 }
 
-.dark body{
-  background:#0f172a!important;
+body.dark,
+.dark body{background:#0f172a!important}
+
+.paper-sheet{
+  position:relative;
+  width:100%;
+  max-width:650px;
+  min-height:550px;
+  overflow:hidden;
+  border:1px solid rgba(148,163,184,.18);
+  border-radius:10px;
+  box-shadow:0 18px 45px rgba(15,23,42,.12)!important;
 }
 
-/* Floating utilities become a clean horizontal action dock. */
+#paper-wrapper{
+  width:100%;
+  background:rgba(241,245,249,.82)!important;
+  border-color:rgba(148,163,184,.30)!important;
+  box-shadow:inset 0 1px 2px rgba(15,23,42,.05)!important;
+}
+
+.paper-content{
+  outline:none;
+  overflow-wrap:anywhere;
+}
+
+button,select,input,textarea{
+  -webkit-tap-highlight-color:transparent;
+}
+
+button{touch-action:manipulation}
+
+#tth-projects,
+#page-history,
+.studio-v2{
+  z-index:10020!important;
+  max-width:calc(100vw - 24px)!important;
+}
+
+/* Desktop utility controls */
 #tth-project-toggle,
 #page-history-toggle,
-#studio-install,
+.studio-install,
 #pwa-install-button{
-  bottom:14px!important;
+  position:fixed!important;
   top:auto!important;
+  bottom:16px!important;
+  z-index:10025!important;
   border:1px solid rgba(255,255,255,.45)!important;
   backdrop-filter:blur(18px)!important;
   -webkit-backdrop-filter:blur(18px)!important;
@@ -73,100 +76,174 @@ body{
   transition:transform .18s ease,box-shadow .18s ease!important;
 }
 
+#tth-project-toggle{right:16px!important}
+#page-history-toggle{right:128px!important}
+.studio-install{right:230px!important}
+#pwa-install-button{right:338px!important}
+
 #tth-project-toggle:hover,
 #page-history-toggle:hover,
-#studio-install:hover,
+.studio-install:hover,
 #pwa-install-button:hover{
   transform:translateY(-2px)!important;
 }
 
-#tth-project-toggle{right:14px!important}
-#page-history-toggle{right:125px!important}
-#studio-install{right:225px!important}
-#pwa-install-button{right:335px!important}
-
-/* Keep injected panels below the header and inside the viewport. */
-#tth-projects,
-#page-history,
-.studio-v2{
-  z-index:10020!important;
-  max-width:calc(100vw - 20px)!important;
-}
-
-/* Brighter, cleaner editor shell. */
-#paper-wrapper{
-  background:rgba(241,245,249,.82)!important;
-  border-color:rgba(148,163,184,.32)!important;
-  box-shadow:inset 0 1px 2px rgba(15,23,42,.06),0 10px 35px rgba(15,23,42,.06)!important;
-}
-
-.paper-sheet{
-  border:1px solid rgba(148,163,184,.18);
-  box-shadow:0 18px 45px rgba(15,23,42,.12)!important;
-}
-
-/* Touch targets and form controls. */
-button,select,input[type=file]{
-  -webkit-tap-highlight-color:transparent;
-}
-
+/* Mobile layout */
 @media(max-width:639px){
-  body{padding-bottom:74px!important}
+  body{padding-bottom:76px!important}
 
+  main{
+    width:100%!important;
+    max-width:100%!important;
+    margin:0!important;
+    padding:10px 8px 28px!important;
+  }
+
+  main>.grid{
+    display:flex!important;
+    flex-direction:column!important;
+    width:100%!important;
+    gap:16px!important;
+  }
+
+  #paper-section,#customization-section,#output-section{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+  }
+
+  #paper-wrapper{
+    padding:6px!important;
+    overflow:hidden!important;
+    border-radius:14px!important;
+  }
+
+  #paper-sheet{
+    width:100%!important;
+    max-width:100%!important;
+    min-height:560px!important;
+    height:auto!important;
+    padding:12px!important;
+    border-radius:10px!important;
+  }
+
+  #paper-top-space{height:40px!important}
+  #paper-margin-line{left:40px!important;width:2px!important}
+  #paper-left-gap{
+    width:40px!important;
+    min-width:40px!important;
+    flex:0 0 40px!important;
+  }
+
+  #paper-content{
+    width:auto!important;
+    min-width:0!important;
+    margin:0!important;
+    padding:0!important;
+  }
+
+  .paper-content{
+    font-size:12pt!important;
+    line-height:30px!important;
+    overflow-wrap:anywhere!important;
+  }
+
+  .paper-line-row{height:30px!important}
+
+  #customization-section>div{
+    width:100%!important;
+    max-width:100%!important;
+    padding:14px!important;
+  }
+
+  #customization-section input,
+  #customization-section select,
+  #customization-section textarea{
+    max-width:100%!important;
+    min-width:0!important;
+    font-size:16px!important;
+  }
+
+  #customization-section .grid{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:8px!important;
+  }
+
+  #customization-section button,
+  #customization-section select,
+  #customization-section input[type=file]{
+    min-height:42px;
+  }
+
+  [role=dialog],
+  #draw-modal,
+  .fixed.inset-0>div{
+    max-width:calc(100vw - 16px)!important;
+  }
+
+  #diagram-canvas{
+    max-width:100%!important;
+    touch-action:none;
+  }
+
+  /* One consistent four-button dock. */
   #tth-project-toggle,
   #page-history-toggle,
-  #studio-install,
+  .studio-install,
   #pwa-install-button{
+    top:auto!important;
     bottom:10px!important;
-    min-height:42px!important;
-    padding:10px 11px!important;
+    height:44px!important;
+    min-height:44px!important;
+    width:calc((100vw - 40px)/4)!important;
+    padding:8px 6px!important;
     border-radius:14px!important;
+    display:flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    white-space:nowrap!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
     font-size:11px!important;
   }
 
   #tth-project-toggle{right:8px!important}
-  #page-history-toggle{right:94px!important}
-  #studio-install{right:180px!important}
-  #pwa-install-button{right:266px!important}
-
-  /* On narrow screens, keep the four actions usable instead of overlapping. */
-  @media(max-width:430px){
-    #tth-project-toggle,
-    #page-history-toggle,
-    #studio-install,
-    #pwa-install-button{
-      width:calc((100vw - 28px)/4)!important;
-      justify-content:center!important;
-      white-space:nowrap!important;
-      overflow:hidden!important;
-      text-overflow:ellipsis!important;
-      padding-left:6px!important;
-      padding-right:6px!important;
-    }
-    #tth-project-toggle{right:7px!important}
-    #page-history-toggle{right:calc((100vw - 28px)/4 + 14px)!important}
-    #studio-install{right:calc(2 * ((100vw - 28px)/4) + 21px)!important}
-    #pwa-install-button{right:calc(3 * ((100vw - 28px)/4) + 28px)!important}
-  }
+  #page-history-toggle{right:calc(8px + (100vw - 40px)/4 + 8px)!important}
+  .studio-install{right:calc(8px + 2 * ((100vw - 40px)/4 + 8px))!important}
+  #pwa-install-button{right:calc(8px + 3 * ((100vw - 40px)/4 + 8px))!important}
 
   #tth-projects,
   #page-history,
   .studio-v2{
+    position:fixed!important;
     top:62px!important;
     right:8px!important;
-    width:calc(100vw - 16px)!important;
-    max-height:calc(100vh - 86px)!important;
+    left:8px!important;
+    width:auto!important;
+    max-width:none!important;
+    max-height:calc(100dvh - 84px)!important;
     border-radius:18px!important;
+    overflow:auto!important;
   }
+}
 
-  #paper-wrapper{padding:7px!important}
-  #paper-sheet{border-radius:10px!important}
-  .paper-content{font-size:12pt!important}
+@media(max-width:380px){
+  main{padding-left:6px!important;padding-right:6px!important}
+  #paper-wrapper{padding:5px!important}
+  #paper-sheet{padding:9px!important;min-height:520px!important}
+  #paper-margin-line{left:34px!important}
+  #paper-left-gap{
+    width:35px!important;
+    min-width:35px!important;
+    flex-basis:35px!important;
+  }
+  .paper-content{font-size:11.5pt!important;line-height:28px!important}
+  .paper-line-row{height:28px!important}
 }
 
 @media(prefers-reduced-motion:reduce){
-  #tth-project-toggle,
-  #page-history-toggle,
-  #studio-install,
-  #pwa-install-button{transition:none!important}
+  *,*::before,*::after{
+    scroll-behavior:auto!important;
+    transition-duration:.01ms!important;
+  }
 }
