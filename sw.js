@@ -1,4 +1,4 @@
-const CACHE = 'tth-pwa-v18';
+const CACHE = 'tth-pwa-v19';
 const APP_SCOPE = '/Text-To-Handwriting/';
 const APP_SHELL = [
   `${APP_SCOPE}`, `${APP_SCOPE}index.html`, `${APP_SCOPE}manifest.webmanifest`,
