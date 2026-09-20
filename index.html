@@ -155,6 +155,31 @@
   <meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="Handwriting">
   <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./mobile-responsive.css">
+
+<style id="tth-homepage-ui">
+.tth-hero{position:relative;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr);gap:28px;align-items:center;overflow:hidden;padding:32px 34px;border:1px solid rgba(14,165,233,.16);border-radius:28px;background:linear-gradient(135deg,rgba(255,255,255,.94),rgba(240,249,255,.82) 58%,rgba(238,242,255,.9));box-shadow:0 22px 70px rgba(15,23,42,.10),inset 0 1px 0 rgba(255,255,255,.9)}
+.tth-hero-glow{position:absolute;width:360px;height:360px;right:18%;top:-220px;border-radius:50%;background:rgba(56,189,248,.18);filter:blur(8px);pointer-events:none}
+.tth-hero-copy,.tth-hero-preview{position:relative;z-index:1}
+.tth-eyebrow{display:inline-flex;align-items:center;gap:8px;padding:7px 11px;border:1px solid rgba(14,165,233,.18);border-radius:999px;background:rgba(255,255,255,.7);color:#0369a1;font:700 11px/1 system-ui,sans-serif;text-transform:uppercase;letter-spacing:.06em}
+.tth-live-dot{width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 4px rgba(34,197,94,.12)}
+.tth-hero h2{max-width:720px;margin:16px 0 10px;color:#0f172a;font:800 clamp(32px,4vw,54px)/1.02 system-ui,sans-serif;letter-spacing:-.045em}
+.tth-hero h2 span{background:linear-gradient(90deg,#0284c7,#4f46e5);-webkit-background-clip:text;background-clip:text;color:transparent}
+.tth-hero p{max-width:650px;margin:0;color:#64748b;font:500 16px/1.65 system-ui,sans-serif}
+.tth-hero-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+.tth-primary-cta,.tth-secondary-cta{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:0 17px;border-radius:14px;font:700 13px system-ui,sans-serif;cursor:pointer}
+.tth-primary-cta{border:1px solid #0284c7;background:linear-gradient(135deg,#0284c7,#2563eb);color:#fff;box-shadow:0 10px 24px rgba(2,132,199,.22)}
+.tth-secondary-cta{border:1px solid rgba(148,163,184,.28);background:rgba(255,255,255,.78);color:#334155}
+.tth-trust-row{display:flex;flex-wrap:wrap;gap:15px;margin-top:18px;color:#64748b;font:600 11px system-ui,sans-serif}
+.tth-trust-row span{display:inline-flex;align-items:center;gap:6px}.tth-trust-row i{color:#0284c7}
+.tth-hero-preview{display:flex;justify-content:center}
+.tth-mini-window{width:min(100%,390px);padding:10px;border:1px solid rgba(148,163,184,.22);border-radius:22px;background:rgba(255,255,255,.62);box-shadow:0 24px 55px rgba(15,23,42,.13);backdrop-filter:blur(18px)}
+.tth-mini-toolbar{height:30px;display:flex;align-items:center;gap:5px;color:#94a3b8;font:700 9px system-ui,sans-serif}.tth-mini-toolbar span{width:7px;height:7px;border-radius:50%;background:#cbd5e1}.tth-mini-toolbar b{margin-left:7px;color:#64748b}.tth-mini-toolbar i{margin-left:auto}
+.tth-mini-paper{position:relative;height:225px;overflow:hidden;border-radius:10px;background:#fffdf8;box-shadow:0 10px 30px rgba(15,23,42,.10);padding:35px 24px 20px 54px}
+.tth-mini-margin{position:absolute;left:39px;top:0;bottom:0;width:1px;background:#fca5a5}.tth-script{position:relative;z-index:2;color:#102a64;font:27px/1.25 "Homemade Apple",cursive;transform:rotate(-1deg)}.tth-mini-line{position:absolute;left:52px;right:18px;height:1px;background:#dbeafe}.tth-mini-line.l1{top:78px}.tth-mini-line.l2{top:113px}.tth-mini-line.l3{top:148px}
+.tth-mini-status{display:flex;align-items:center;gap:7px;padding:9px 3px 1px;color:#64748b;font:600 10px system-ui,sans-serif}.tth-mini-status span{margin-right:auto}.tth-mini-status i{color:#22c55e}.tth-mini-status b{padding:4px 7px;border-radius:7px;background:#e0f2fe;color:#0369a1;font-size:8px}
+@media(max-width:900px){.tth-hero{grid-template-columns:1fr;padding:26px}.tth-hero-preview{display:none}}
+@media(max-width:639px){.tth-hero{padding:22px 18px;border-radius:22px;display:block}.tth-hero h2{font-size:34px;margin-top:13px}.tth-hero p{font-size:14px;line-height:1.55}.tth-hero-actions{margin-top:17px}.tth-primary-cta,.tth-secondary-cta{flex:1;min-width:145px}.tth-trust-row{gap:9px 13px;font-size:10px}.tth-trust-row span:nth-child(3){display:none}}
+</style>
 </head>
 <body class="bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-200 min-h-screen flex flex-col font-sans">
 
@@ -185,6 +210,27 @@
       </div>
     </div>
   </header>
+
+  <section class="tth-hero" aria-labelledby="tth-hero-title">
+    <div class="tth-hero-glow"></div>
+    <div class="tth-hero-copy">
+      <div class="tth-eyebrow"><span class="tth-live-dot"></span> Free browser-based handwriting studio</div>
+      <h2 id="tth-hero-title">Turn your text into <span>realistic handwriting.</span></h2>
+      <p>Write, style, preview and export polished handwritten pages — without installing complicated software.</p>
+      <div class="tth-hero-actions">
+        <button type="button" onclick="document.getElementById('paper-content')?.focus()" class="tth-primary-cta"><i class="fa-solid fa-pen"></i> Start writing</button>
+        <button type="button" onclick="document.getElementById('customization-section')?.scrollIntoView({behavior:'smooth'})" class="tth-secondary-cta"><i class="fa-solid fa-wand-magic-sparkles"></i> Customize style</button>
+      </div>
+      <div class="tth-trust-row"><span><i class="fa-solid fa-bolt"></i> Instant preview</span><span><i class="fa-solid fa-file-export"></i> PNG & PDF</span><span><i class="fa-solid fa-cloud"></i> Saved locally</span></div>
+    </div>
+    <div class="tth-hero-preview" aria-hidden="true">
+      <div class="tth-mini-window">
+        <div class="tth-mini-toolbar"><span></span><span></span><span></span><b>Handwriting Preview</b><i class="fa-solid fa-expand"></i></div>
+        <div class="tth-mini-paper"><div class="tth-mini-margin"></div><div class="tth-script">Your ideas,<br>in your own style.</div><div class="tth-mini-line l1"></div><div class="tth-mini-line l2"></div><div class="tth-mini-line l3"></div></div>
+        <div class="tth-mini-status"><span><i class="fa-solid fa-circle-check"></i> Preview ready</span><b>PDF</b><b>PNG</b></div>
+      </div>
+    </div>
+  </section>
 
   <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6 sm:space-y-8">
 
