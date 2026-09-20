@@ -250,6 +250,16 @@
       </button>
     </div>
 
+    <div class="tth-studio-toolbar" role="toolbar" aria-label="Studio quick controls">
+      <div class="tth-toolbar-title"><span class="tth-live-dot"></span><span>Handwriting Studio</span><small>Live preview</small></div>
+      <div class="tth-toolbar-actions">
+        <button type="button" onclick="document.getElementById('paper-content')?.focus()" title="Focus editor"><i class="fa-solid fa-pen"></i><span>Write</span></button>
+        <button type="button" onclick="document.getElementById('handwriting-font-select')?.focus()" title="Choose handwriting font"><i class="fa-solid fa-font"></i><span>Font</span></button>
+        <button type="button" onclick="document.getElementById('ink-color-select')?.focus()" title="Choose ink color"><i class="fa-solid fa-droplet"></i><span>Ink</span></button>
+        <button type="button" onclick="document.getElementById('generate-btn')?.click()" title="Generate handwriting"><i class="fa-solid fa-wand-magic-sparkles"></i><span>Generate</span></button>
+      </div>
+    </div>
+
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
       
       <!-- LEFT COLUMN: Paper Canvas & Editor (7 cols) -->
