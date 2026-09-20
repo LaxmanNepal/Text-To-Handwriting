@@ -4,6 +4,7 @@
   "description": "Convert typed text into realistic handwriting images and PDFs.",
   "lang": "en",
   "dir": "ltr",
+  "id": "/Text-To-Handwriting/",
   "start_url": "/Text-To-Handwriting/?source=pwa",
   "scope": "/Text-To-Handwriting/",
   "display": "standalone",
